@@ -34,6 +34,30 @@ and weekend slots, defined in `lib/availability.ts`. Submissions POST to
 `app/api/stripe/create-checkout-session/route.ts`, which is a stub that logs the
 payload — wire up Stripe + Calendar there when ready.
 
+## Photo quote
+
+`components/PhotoQuoteForm.tsx` lets visitors upload photos with their info.
+Submissions POST to `app/api/photo-quote/route.ts`, which:
+
+1. Saves photos to `/tmp/baw-photo-uploads/<sessionId>/` on the Railway
+   container.
+2. Logs the submission to Railway → Logs.
+3. If Twilio env vars are set, sends an MMS to `TWILIO_TO_NUMBER` (default
+   `+18328819960`) with the customer info as the body and the photos attached
+   via media URLs served by `app/api/photo-quote/media/[...path]/route.ts`.
+
+Required env vars (Railway → Variables):
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER` (your Twilio number, e.g. `+15125551234`)
+- `TWILIO_TO_NUMBER` (optional; defaults to `+18328819960`)
+- `PUBLIC_BASE_URL` (optional; e.g. `https://bayareawashbros.com`)
+
+Without those env vars the form still works — submissions are just logged
+instead of texted. This is single-replica only; if you scale Railway to >1
+replica, swap `/tmp` storage for S3/R2.
+
 ## Stripe / Calendar
 
 Both are stubbed today. To enable:

@@ -1,3 +1,4 @@
+import type { CSSProperties, ReactNode } from "react";
 import BookingForm from "../components/BookingForm";
 import PhotoQuoteForm from "../components/PhotoQuoteForm";
 
@@ -8,7 +9,7 @@ type Service = {
   name: string;
   pitch: string;
   price: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 };
 
 const stroke = "#0C4A6E";
@@ -99,13 +100,13 @@ const trustPills = [
   "No deposit to book",
 ];
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   maxWidth: 1040,
   margin: "0 auto",
   padding: "0 20px",
 };
 
-const sectionTitleStyle: React.CSSProperties = {
+const sectionTitleStyle: CSSProperties = {
   fontSize: "clamp(26px, 4.2vw, 34px)",
   fontWeight: 800,
   letterSpacing: "-0.01em",
@@ -113,7 +114,7 @@ const sectionTitleStyle: React.CSSProperties = {
   margin: "0 0 8px",
 };
 
-const sectionSubStyle: React.CSSProperties = {
+const sectionSubStyle: CSSProperties = {
   fontSize: 17,
   color: "#475569",
   margin: "0 0 24px",
