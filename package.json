@@ -5,25 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start -p ${PORT:-3000}",
-    "lint": "next lint"
+    "start": "next start -p ${PORT:-3000}"
   },
   "dependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "autoprefixer": "latest",
-    "eslint": "latest",
-    "eslint-config-next": "latest",
     "next": "latest",
-    "postcss": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "stripe": "latest",
-    "tailwindcss": "latest",
-    "typescript": "latest",
-    "zod": "latest",
-    "googleapis": "latest"
-  },
-  "devDependencies": {}
+    "react-dom": "latest"
+  }
 }
