@@ -1,15 +1,17 @@
-import { google } from "googleapis";
+// Calendar integration stub.
+//
+// The previous version of this file imported `googleapis`, which is NOT in
+// package.json. That worked only because nothing imported this file — the
+// moment any code path imports it, the build would break.
+//
+// To keep dependencies minimal (per the stabilization rules), this is now a
+// pure logging stub. When you're ready to wire up Google Calendar:
+//   1. Add "googleapis" to package.json dependencies
+//   2. Restore the implementation from git history (commit 989306c)
+//   3. Set GOOGLE_CALENDAR_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY
+//      in Railway → Variables.
 
-export async function createCalendarEvent({
-  name,
-  phone,
-  email,
-  address,
-  service,
-  date,
-  time,
-  notes,
-}: {
+export type CalendarEventInput = {
   name: string;
   phone: string;
   email?: string;
@@ -18,35 +20,13 @@ export async function createCalendarEvent({
   date: string;
   time: string;
   notes?: string;
-}) {
-  const calendarId = process.env.GOOGLE_CALENDAR_ID;
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+};
 
-  if (!calendarId || !clientEmail || !privateKey) {
-    console.log("Calendar stub event:", { name, date, time });
-    return;
-  }
-
-  const auth = new google.auth.JWT({
-    email: clientEmail,
-    key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/calendar"],
-  });
-
-  const calendar = google.calendar({ version: "v3", auth });
-
-  const start = new Date(`${date}T${time}:00`);
-  const end = new Date(start.getTime() + 90 * 60 * 1000);
-
-  await calendar.events.insert({
-    calendarId,
-    requestBody: {
-      summary: `Wash Bros - ${service}`,
-      location: address,
-      description: `Customer: ${name}\nPhone: ${phone}\n${email ?? ""}\n${notes ?? ""}`,
-      start: { dateTime: start.toISOString() },
-      end: { dateTime: end.toISOString() },
-    },
+export async function createCalendarEvent(input: CalendarEventInput) {
+  console.log("[calendar stub] would create event:", {
+    name: input.name,
+    date: input.date,
+    time: input.time,
+    service: input.service,
   });
 }

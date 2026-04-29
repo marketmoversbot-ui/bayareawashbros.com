@@ -1,35 +1,46 @@
-# Bay Area Wash Bros — Publishable Starter Site
+# Bay Area Wash Bros
 
-A launch-ready Next.js starter for a League City pressure washing business.
+Next.js + Railway production site for a League City pressure-washing business.
 
-## Included
+## Stack
 
-- Public marketing homepage
-- Services section
-- Photo estimate assistant stub
-- Booking form
-- $25 refundable deposit checkout stub
-- Stripe API route stub
-- AI photo estimate API route stub
-- Google Calendar event creation stub
-- Railway deployment config
-- GitHub-ready repo files
-- Namecheap DNS instructions
+- Next.js 14 App Router (TypeScript)
+- No Tailwind, no PostCSS — all styles inline or in `app/globals.css`
+- Deployed on Railway with auto-deploy from `main`
 
-## Local setup
+## Local development
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-## Calendar setup
+## Production build
 
-The booking form only allows Thursday afternoon and weekend slots. Other days appear booked.
+```bash
+npm run build
+npm start
+```
 
-After a successful Stripe checkout, the Stripe webhook calls the Google Calendar helper and creates the job event on the connected calendar.
+The `start` script binds `0.0.0.0` and reads `PORT` from the env (Railway sets it
+to 8080) — falling back to 3000 locally.
 
-See `docs/calendar-setup.md`.
+## Booking
+
+The booking form (`components/BookingForm.tsx`) only accepts Thursday afternoon
+and weekend slots, defined in `lib/availability.ts`. Submissions POST to
+`app/api/stripe/create-checkout-session/route.ts`, which is a stub that logs the
+payload — wire up Stripe + Calendar there when ready.
+
+## Stripe / Calendar
+
+Both are stubbed today. To enable:
+
+- **Stripe**: replace the body of `app/api/stripe/create-checkout-session/route.ts`
+  with a real Checkout Session call. Add `stripe` to `package.json` and set
+  `STRIPE_SECRET_KEY` in Railway → Variables.
+- **Google Calendar**: see `lib/calendar.ts` — restore the `googleapis` import
+  from git history (commit `989306c`), add `googleapis` to `package.json`, and
+  set the three env vars listed in that file.
