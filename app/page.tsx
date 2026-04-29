@@ -1,4 +1,5 @@
 import BookingForm from "../components/BookingForm";
+import PhotoQuoteForm from "../components/PhotoQuoteForm";
 
 const phone = "832-881-9960";
 const phoneRaw = "18328819960";
@@ -140,7 +141,6 @@ export default function Home() {
           overflow: "hidden",
         }}
       >
-        {/* decorative water blobs */}
         <svg
           aria-hidden
           width="520"
@@ -195,7 +195,7 @@ export default function Home() {
               maxWidth: 720,
             }}
           >
-            Bay Area Wash Bros
+            Bay Area Wash Bros.
             <br />
             <span style={{ color: "#FACC15" }}>
               Pressure washing done right.
@@ -211,11 +211,10 @@ export default function Home() {
             }}
           >
             Driveways, houses, patios, fences, and the gross trash cans nobody
-            else wants to touch. Text us a photo and we&apos;ll send a quote
+            else wants to touch. Send a few photos and we&apos;ll text a quote
             back within the hour.
           </p>
 
-          {/* dual CTA */}
           <div
             style={{
               display: "flex",
@@ -225,7 +224,7 @@ export default function Home() {
             }}
           >
             <a
-              href={`sms:${phoneRaw}`}
+              href="#photo"
               style={{
                 display: "inline-block",
                 background: "#FACC15",
@@ -238,7 +237,7 @@ export default function Home() {
                 boxShadow: "0 8px 18px rgba(250, 204, 21, 0.35)",
               }}
             >
-              📸 Text photos for fast quote
+              📸 Send photos for a quote
             </a>
             <a
               href="#book"
@@ -274,7 +273,6 @@ export default function Home() {
             </a>
           </div>
 
-          {/* trust pills */}
           <div
             style={{
               display: "flex",
@@ -309,8 +307,36 @@ export default function Home() {
         </div>
       </section>
 
+      {/* PHOTO QUOTE */}
+      <section
+        id="photo"
+        style={{ padding: "56px 0", background: "#F0F9FF" }}
+      >
+        <div style={containerStyle}>
+          <h2 style={sectionTitleStyle}>Send photos, get a quote</h2>
+          <p style={sectionSubStyle}>
+            Snap a few pics of the driveway, house, fence — whatever you want
+            washed. We&apos;ll text a price back within the hour.
+          </p>
+
+          <div
+            style={{
+              background: "white",
+              borderRadius: 18,
+              padding: 24,
+              maxWidth: 560,
+              boxShadow:
+                "0 1px 2px rgba(15,23,42,0.05), 0 10px 24px rgba(15,23,42,0.07)",
+              border: "1px solid #E2E8F0",
+            }}
+          >
+            <PhotoQuoteForm />
+          </div>
+        </div>
+      </section>
+
       {/* SERVICES */}
-      <section style={{ padding: "56px 0", background: "#F0F9FF" }}>
+      <section style={{ padding: "56px 0", background: "white" }}>
         <div style={containerStyle}>
           <h2 style={sectionTitleStyle}>What we wash</h2>
           <p style={sectionSubStyle}>
@@ -489,7 +515,7 @@ export default function Home() {
               color: "rgba(255,255,255,0.6)",
             }}
           >
-            © {new Date().getFullYear()} Bay Area Wash Bros · League City, TX
+            © {new Date().getFullYear()} Bay Area Wash Bros. · League City, TX
           </p>
         </div>
       </footer>
