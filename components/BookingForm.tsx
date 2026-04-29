@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { getAvailableSlots, isAllowedBookingSlot } from "../lib/availability";
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   display: "block",
   width: "100%",
   padding: 12,
@@ -14,7 +14,7 @@ const inputStyle: React.CSSProperties = {
   background: "white",
 };
 
-const buttonStyle: React.CSSProperties = {
+const buttonStyle: CSSProperties = {
   display: "block",
   width: "100%",
   padding: 14,
@@ -28,7 +28,7 @@ const buttonStyle: React.CSSProperties = {
   marginTop: 8,
 };
 
-const slotLabel: React.CSSProperties = {
+const slotLabel: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
