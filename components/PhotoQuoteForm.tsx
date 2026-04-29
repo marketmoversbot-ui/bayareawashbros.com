@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent, type FormEvent } from "react";
+import { useState, useRef, type ChangeEvent, type FormEvent, type CSSProperties } from "react";
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   display: "block",
   width: "100%",
   padding: 12,
@@ -14,7 +14,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
 };
 
-const buttonStyle: React.CSSProperties = {
+const buttonStyle: CSSProperties = {
   display: "block",
   width: "100%",
   padding: 14,
@@ -29,7 +29,7 @@ const buttonStyle: React.CSSProperties = {
   boxShadow: "0 6px 14px rgba(250, 204, 21, 0.35)",
 };
 
-const dropZoneStyle: React.CSSProperties = {
+const dropZoneStyle: CSSProperties = {
   display: "block",
   width: "100%",
   padding: 16,
@@ -82,7 +82,6 @@ export default function PhotoQuoteForm() {
 
     const formEl = e.currentTarget;
     const data = new FormData(formEl);
-    // Replace any existing "photos" entries with our state list
     data.delete("photos");
     files.forEach((f) => data.append("photos", f, f.name));
 
@@ -113,125 +112,30 @@ export default function PhotoQuoteForm() {
 
   return (
     <form onSubmit={handleSubmit}>
-      <input
-        name="name"
-        placeholder="Name"
-        autoComplete="name"
-        required
-        style={inputStyle}
-      />
-      <input
-        name="phone"
-        type="tel"
-        placeholder="Phone (where we'll text the quote)"
-        autoComplete="tel"
-        required
-        style={inputStyle}
-      />
-      <input
-        name="address"
-        placeholder="Address (optional, helps with quoting)"
-        autoComplete="street-address"
-        style={inputStyle}
-      />
-      <textarea
-        name="notes"
-        placeholder="Anything we should know? (e.g. 2-car driveway, oil stains, two-story house)"
-        rows={3}
-        style={{ ...inputStyle, resize: "vertical" }}
-      />
+      <input name="name" placeholder="Name" required style={inputStyle} />
+      <input name="phone" placeholder="Phone" required style={inputStyle} />
+      <input name="address" placeholder="Address" style={inputStyle} />
+      <textarea name="notes" rows={3} style={{ ...inputStyle, resize: "vertical" }} />
 
       <label htmlFor="photo-input" style={dropZoneStyle}>
-        <strong style={{ color: "#0C4A6E" }}>📸 Tap to add photos</strong>
-        <br />
-        <span style={{ fontSize: 13 }}>
-          JPG / PNG / HEIC. Multiple photos welcome.
-        </span>
+        📸 Tap to add photos
       </label>
       <input
         id="photo-input"
         ref={fileInputRef}
         type="file"
-        name="photos"
         accept="image/*"
         multiple
         onChange={onFileChange}
         required
-        style={{
-          position: "absolute",
-          width: 1,
-          height: 1,
-          opacity: 0,
-          pointerEvents: "none",
-        }}
+        style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
       />
-
-      {files.length > 0 ? (
-        <ul
-          style={{
-            listStyle: "none",
-            padding: 0,
-            margin: "0 0 12px",
-            fontSize: 14,
-            color: "#0F172A",
-          }}
-        >
-          {files.map((f, i) => (
-            <li
-              key={`${f.name}-${i}`}
-              style={{
-                padding: "6px 10px",
-                background: "#E0F2FE",
-                borderRadius: 8,
-                marginBottom: 4,
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 8,
-              }}
-            >
-              <span
-                style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {f.name}
-              </span>
-              <span style={{ color: "#475569", flexShrink: 0 }}>
-                {formatBytes(f.size)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       <button type="submit" disabled={loading} style={buttonStyle}>
         {loading ? "Sending..." : "Send photos for a quote"}
       </button>
 
-      {message ? (
-        <p
-          style={{
-            marginTop: 12,
-            fontWeight: "bold",
-            color: message.kind === "ok" ? "#15803D" : "#B91C1C",
-          }}
-        >
-          {message.text}
-        </p>
-      ) : null}
-
-      <p style={{ marginTop: 14, fontSize: 13, color: "#475569" }}>
-        Prefer to text? Send pics to{" "}
-        <a
-          href="sms:18328819960"
-          style={{ color: "#0369A1", fontWeight: 700 }}
-        >
-          832-881-9960
-        </a>
-        .
-      </p>
+      {message && <p style={{ marginTop: 12 }}>{message.text}</p>}
     </form>
   );
 }
