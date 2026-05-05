@@ -6,9 +6,7 @@ import StickyMobileCTA from "../components/StickyMobileCTA";
 const phone = "832-881-9960";
 const phoneRaw = "18328819960";
 
-// ============================================================
-// Style tokens — single source of truth so the whole page is consistent.
-// ============================================================
+// ---- Style tokens ----
 const sky = "#0EA5E9";
 const skyDark = "#0C4A6E";
 const accent = "#FACC15";
@@ -41,14 +39,60 @@ const cardStyle: CSSProperties = {
   background: "white",
   borderRadius: 16,
   padding: 22,
-  boxShadow:
-    "0 1px 2px rgba(15,23,42,0.04), 0 6px 18px rgba(15,23,42,0.06)",
+  boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 6px 18px rgba(15,23,42,0.06)",
   border: "1px solid #E2E8F0",
 };
 
-// ============================================================
-// Service catalog — "Starting at $X" only, per brief
-// ============================================================
+// ---- CTA button styles (must be declared BEFORE the component that uses them) ----
+const ctaPrimary: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  background: accent,
+  color: "#1F2937",
+  padding: "16px 26px",
+  borderRadius: 12,
+  fontWeight: 800,
+  fontSize: 16,
+  textDecoration: "none",
+  boxShadow: "0 8px 22px rgba(250,204,21,0.40)",
+  border: "none",
+  whiteSpace: "nowrap",
+};
+
+const ctaSecondary: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  background: "rgba(255,255,255,0.12)",
+  color: "white",
+  padding: "16px 26px",
+  borderRadius: 12,
+  fontWeight: 800,
+  fontSize: 16,
+  textDecoration: "none",
+  border: "2px solid rgba(255,255,255,0.55)",
+  backdropFilter: "blur(4px)",
+  whiteSpace: "nowrap",
+};
+
+function galleryLabel(bg: string): CSSProperties {
+  return {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    background: bg,
+    color: "white",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+    padding: "4px 8px",
+    borderRadius: 4,
+  };
+}
+
+// ---- Service catalog ----
 type Service = {
   name: string;
   pitch: string;
@@ -229,7 +273,7 @@ export default function Home() {
           color: "white",
           padding: "72px 0 80px",
           overflow: "hidden",
-          background: `linear-gradient(135deg, rgba(12,74,110,0.82) 0%, rgba(3,105,161,0.78) 55%, rgba(14,165,233,0.72) 100%), url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1600&q=70') center/cover no-repeat`,
+          background: "linear-gradient(135deg, rgba(12,74,110,0.82) 0%, rgba(3,105,161,0.78) 55%, rgba(14,165,233,0.72) 100%), url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1600&q=70') center/cover no-repeat",
         }}
       >
         <div style={containerStyle}>
@@ -375,52 +419,4 @@ export default function Home() {
       <StickyMobileCTA />
     </main>
   );
-}
-
-const ctaPrimary: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  background: accent,
-  color: "#1F2937",
-  padding: "16px 26px",
-  borderRadius: 12,
-  fontWeight: 800,
-  fontSize: 16,
-  textDecoration: "none",
-  boxShadow: "0 8px 22px rgba(250,204,21,0.40)",
-  border: "none",
-  whiteSpace: "nowrap",
-};
-
-const ctaSecondary: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  background: "rgba(255,255,255,0.12)",
-  color: "white",
-  padding: "16px 26px",
-  borderRadius: 12,
-  fontWeight: 800,
-  fontSize: 16,
-  textDecoration: "none",
-  border: "2px solid rgba(255,255,255,0.55)",
-  backdropFilter: "blur(4px)",
-  whiteSpace: "nowrap",
-};
-
-function galleryLabel(bg: string): CSSProperties {
-  return {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    background: bg,
-    color: "white",
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: "0.05em",
-    textTransform: "uppercase",
-    padding: "4px 8px",
-    borderRadius: 4,
-  };
 }
