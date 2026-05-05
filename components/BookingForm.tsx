@@ -1,9 +1,16 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
-import { getAvailableSlots, isAllowedBookingSlot } from "../lib/availability";
+// Updated booking form (Phase 2):
+// - Fetches live availability from /api/availability (driven by the database)
+// - Customer picks a date that has open slots, then a time slot
+// - On submit, posts to the Stripe checkout stub (Phase 4 will wire this up properly)
 
-const inputStyle: CSSProperties = {
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+
+type ApiSlot = { iso: string; label: string };
+type ApiDay = { date: string; slots: ApiSlot[] };
+
+const inputStyle: React.CSSProperties = {
   display: "block",
   width: "100%",
   padding: 12,
@@ -14,7 +21,7 @@ const inputStyle: CSSProperties = {
   background: "white",
 };
 
-const buttonStyle: CSSProperties = {
+const buttonStyle: React.CSSProperties = {
   display: "block",
   width: "100%",
   padding: 14,
@@ -28,7 +35,7 @@ const buttonStyle: CSSProperties = {
   marginTop: 8,
 };
 
-const slotLabel: CSSProperties = {
+const slotLabel: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
@@ -41,28 +48,70 @@ const slotLabel: CSSProperties = {
   fontSize: 15,
 };
 
+function ymdLabel(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map((s) => parseInt(s, 10));
+  // Build a UTC noon date so the formatter doesn't shift across timezones.
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
+  return dt.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function BookingForm() {
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [days, setDays] = useState<ApiDay[]>([]);
+  const [loadingDays, setLoadingDays] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedSlotIso, setSelectedSlotIso] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const slots = useMemo(() => getAvailableSlots(date), [date]);
+  // Fetch availability once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/availability", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { days: ApiDay[] };
+        if (!cancelled) setDays(data.days ?? []);
+      } catch (e) {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : "Failed to load");
+      } finally {
+        if (!cancelled) setLoadingDays(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const slotsForDate = useMemo(() => {
+    if (!selectedDate) return [];
+    return days.find((d) => d.date === selectedDate)?.slots ?? [];
+  }, [days, selectedDate]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMessage(null);
 
-    if (!date || !time || !isAllowedBookingSlot(date, time)) {
+    if (!selectedDate || !selectedSlotIso) {
       setMessage("Please pick an available date and time slot.");
       return;
     }
 
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
-    const payload = Object.fromEntries(form.entries());
+    const payload = {
+      ...Object.fromEntries(form.entries()),
+      date: selectedDate,
+      slotIso: selectedSlotIso,
+    };
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
@@ -72,15 +121,15 @@ export default function BookingForm() {
       if (!res.ok) throw new Error("Request failed");
 
       formEl.reset();
-      setDate("");
-      setTime("");
+      setSelectedDate("");
+      setSelectedSlotIso("");
       setMessage("Booking saved (stub mode). We will contact you shortly.");
     } catch {
       setMessage(
         "Something went wrong saving your booking. Please text us at 832-881-9960."
       );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
@@ -109,58 +158,76 @@ export default function BookingForm() {
         style={inputStyle}
       />
 
-      <label
-        style={{ display: "block", fontWeight: 600, margin: "8px 0 4px" }}
-      >
-        Pick a date (Thursdays + weekends only)
+      <label style={{ display: "block", fontWeight: 600, margin: "8px 0 6px" }}>
+        Pick a date
       </label>
-      <input
-        type="date"
-        name="date"
-        value={date}
-        onChange={(e) => {
-          setDate(e.target.value);
-          setTime("");
-        }}
-        required
-        style={inputStyle}
-      />
 
-      {date && slots.length === 0 ? (
-        <p style={{ margin: "8px 0", color: "#b45309" }}>
-          We don&apos;t book on that day. Please choose a Thursday afternoon or
-          a weekend.
+      {loadingDays ? (
+        <p style={{ margin: "4px 0", color: "#64748b", fontSize: 14 }}>Loading available datesâ€¦</p>
+      ) : loadError ? (
+        <p style={{ margin: "4px 0", color: "#b45309", fontSize: 14 }}>
+          Could not load availability. Please text 832-881-9960 to book.
         </p>
-      ) : null}
-
-      {slots.length > 0 ? (
-        <div style={{ margin: "8px 0 16px" }}>
-          {slots.map((s) => (
-            <label
-              key={s.value}
-              style={{
-                ...slotLabel,
-                background: time === s.value ? "#0EA5E9" : "white",
-                color: time === s.value ? "white" : "#111827",
-                borderColor: time === s.value ? "#0EA5E9" : "#cbd5e1",
-              }}
-            >
-              <input
-                type="radio"
-                name="time"
-                value={s.value}
-                checked={time === s.value}
-                onChange={() => setTime(s.value)}
-                style={{ margin: 0 }}
-              />
-              {s.label}
-            </label>
+      ) : days.length === 0 ? (
+        <p style={{ margin: "4px 0", color: "#b45309", fontSize: 14 }}>
+          No open dates in the next 4 weeks. Please text 832-881-9960 to schedule.
+        </p>
+      ) : (
+        <select
+          name="date-display"
+          value={selectedDate}
+          onChange={(e) => {
+            setSelectedDate(e.target.value);
+            setSelectedSlotIso("");
+          }}
+          required
+          style={inputStyle}
+        >
+          <option value="">Choose a dateâ€¦</option>
+          {days.map((d) => (
+            <option key={d.date} value={d.date}>
+              {ymdLabel(d.date)}
+            </option>
           ))}
-        </div>
+        </select>
+      )}
+
+      {selectedDate && slotsForDate.length > 0 ? (
+        <>
+          <label style={{ display: "block", fontWeight: 600, margin: "8px 0 4px" }}>
+            Pick a time
+          </label>
+          <div style={{ margin: "4px 0 16px" }}>
+            {slotsForDate.map((s) => {
+              const selected = selectedSlotIso === s.iso;
+              return (
+                <label
+                  key={s.iso}
+                  style={{
+                    ...slotLabel,
+                    background: selected ? "#0EA5E9" : "white",
+                    color: selected ? "white" : "#111827",
+                    borderColor: selected ? "#0EA5E9" : "#cbd5e1",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="slot"
+                    value={s.iso}
+                    checked={selected}
+                    onChange={() => setSelectedSlotIso(s.iso)}
+                    style={{ margin: 0 }}
+                  />
+                  {s.label}
+                </label>
+              );
+            })}
+          </div>
+        </>
       ) : null}
 
-      <button type="submit" disabled={loading} style={buttonStyle}>
-        {loading ? "Saving..." : "Reserve Spot"}
+      <button type="submit" disabled={submitting || loadingDays} style={buttonStyle}>
+        {submitting ? "Saving..." : "Reserve Spot"}
       </button>
 
       {message ? (
