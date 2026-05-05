@@ -6,6 +6,13 @@
 
 import { useEffect, useState } from "react";
 
+const styleBlock =
+  ".baw-sticky-cta { display: none; } " +
+  "@media (max-width: 768px) { " +
+  "  .baw-sticky-cta { display: block; } " +
+  "  .baw-sticky-cta[data-hidden=\"true\"] { transform: translateY(120%); } " +
+  "}";
+
 export default function StickyMobileCTA() {
   const [hidden, setHidden] = useState(false);
 
@@ -16,8 +23,6 @@ export default function StickyMobileCTA() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // If any of the observed sections is intersecting (≥30% visible),
-        // we hide the sticky bar.
         const anyVisible = entries.some((e) => e.isIntersecting);
         setHidden(anyVisible);
       },
@@ -31,14 +36,7 @@ export default function StickyMobileCTA() {
 
   return (
     <>
-      {/* Mobile-only sticky CTA via media query in inline <style> */}
-      <style>{`
-        .baw-sticky-cta { display: none; }
-        @media (max-width: 768px) {
-          .baw-sticky-cta { display: block; }
-          .baw-sticky-cta[data-hidden="true"] { transform: translateY(120%); }
-        }
-      `}</style>
+      <style dangerouslySetInnerHTML={{ __html: styleBlock }} />
       <div
         className="baw-sticky-cta"
         data-hidden={hidden ? "true" : "false"}
@@ -72,7 +70,7 @@ export default function StickyMobileCTA() {
             boxShadow: "0 6px 14px rgba(14,165,233,0.32)",
           }}
         >
-          📸 Get a Quote
+          Get a Quote
         </a>
       </div>
     </>
