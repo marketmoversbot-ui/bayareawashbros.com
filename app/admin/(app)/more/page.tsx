@@ -1,5 +1,7 @@
 import AdminTopBar from "../../../../components/AdminTopBar";
 
+export const dynamic = "force-dynamic";
+
 export default function MorePage() {
   return (
     <>

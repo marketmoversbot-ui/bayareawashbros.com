@@ -2,6 +2,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/auth";
 import AdminTopBar from "../../../components/AdminTopBar";
 
+// Skip static pre-rendering — this page reads the session and DB at request time.
+export const dynamic = "force-dynamic";
+
 export default async function InboxPage() {
   const session = await getServerSession(authOptions);
   const name = session?.user?.name || session?.user?.email?.split("@")[0] || "there";
