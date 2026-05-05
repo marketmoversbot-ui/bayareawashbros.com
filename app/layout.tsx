@@ -1,6 +1,5 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import BetaBanner from "../components/BetaBanner";
 
 export const metadata: Metadata = {
   title: "Bay Area Wash Bros | League City Pressure Washing",
@@ -32,7 +31,6 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
       </head>
       <body>
-        <BetaBanner />
         {children}
       </body>
     </html>
