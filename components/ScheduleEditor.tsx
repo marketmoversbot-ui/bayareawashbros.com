@@ -2,60 +2,93 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-// ---- Shared types (mirror the API shapes) ----
+// ---- Shared types ----
 type Rule = {
   id?: string;
-  dayOfWeek: number; // 0..6 = Sun..Sat
-  startTime: string; // "HH:MM"
+  dayOfWeek: number;
+  startTime: string;
   endTime: string;
   active: boolean;
 };
 type Exception = {
   id: string;
-  date: string;       // ISO with time, but we only use the date portion
+  date: string;
   isBlock: boolean;
   startTime: string | null;
   endTime: string | null;
   reason: string | null;
 };
 type WindowMin = { startMin: number; endMin: number };
-type DayPreview = { date: string; dow: number; windows: WindowMin[]; hasException: boolean };
+type DayBooking = {
+  id: string;
+  startLabel: string;
+  endLabel: string;
+  durationMin: number;
+  service: string;
+  customerName: string | null;
+};
+type DayPreview = {
+  date: string;
+  dow: number;
+  windows: WindowMin[];
+  hasException: boolean;
+  bookings: DayBooking[];
+};
 type Snapshot = { rules: Rule[]; exceptions: Exception[]; days: DayPreview[] };
+
+type BookingDetail = {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  startLabel: string;
+  endLabel: string;
+  durationMin: number;
+  service: string;
+  priceCents: number;
+  status: string;
+  paymentStatus: string;
+  notes: string | null;
+  customer: {
+    id: string;
+    name: string | null;
+    phone: string;
+    address: string | null;
+    notes: string | null;
+  } | null;
+};
 
 // ---- Display helpers ----
 const DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DOW_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-function fmtTime12(hhmm: string): string {
-  const [h, m] = hhmm.split(":").map((s) => parseInt(s, 10));
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = ((h + 11) % 12) + 1;
-  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
-}
 
 function fmtMinutes(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   const period = h >= 12 ? "PM" : "AM";
   const h12 = ((h + 11) % 12) + 1;
-  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+  return h12 + ":" + String(m).padStart(2, "0") + " " + period;
+}
+
+function fmtDuration(mins: number): string {
+  if (mins < 60) return mins + " min";
+  if (mins % 60 === 0) return mins / 60 + " hr";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (m === 30) return h + ".5 hr";
+  return h + "h " + m + "m";
 }
 
 function ymdLabel(ymd: string): { dayName: string; monthDay: string } {
-  // ymd is "YYYY-MM-DD" â€” parse parts directly to avoid timezone shifts on Date()
   const [y, m, d] = ymd.split("-").map((s) => parseInt(s, 10));
-  const dt = new Date(Date.UTC(y, m - 1, d, 12)); // noon UTC, safe for any TZ
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
   const dayName = DOW_SHORT[dt.getUTCDay()];
-  const monthDay = `${dt.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })} ${d}`;
+  const monthDay = dt.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }) + " " + d;
   return { dayName, monthDay };
 }
 
 function todayYmd(): string {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
 }
 
 // ---- Style tokens ----
@@ -106,22 +139,21 @@ const dangerBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-// ============================================================
+// =============================================================
 // Main component
-// ============================================================
+// =============================================================
 export default function ScheduleEditor() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<"calendar" | "weekly">("calendar");
-
-  // Modal state for editing/adding a single-day exception
   const [exceptionModal, setExceptionModal] = useState<{ ymd: string } | null>(null);
+  const [bookingModal, setBookingModal] = useState<{ id: string } | null>(null);
 
   async function reload() {
     setLoadError(null);
     try {
       const res = await fetch("/api/admin/availability", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error("HTTP " + res.status);
       const data = (await res.json()) as Snapshot;
       setSnapshot(data);
     } catch (e) {
@@ -137,19 +169,16 @@ export default function ScheduleEditor() {
     return (
       <div style={{ ...card, color: "#b91c1c" }}>
         Failed to load schedule: {loadError}{" "}
-        <button onClick={reload} style={{ ...secondaryBtn, marginLeft: 8 }}>
-          Retry
-        </button>
+        <button onClick={reload} style={{ ...secondaryBtn, marginLeft: 8 }}>Retry</button>
       </div>
     );
   }
   if (!snapshot) {
-    return <div style={{ ...card, color: "#64748b" }}>Loadingâ€¦</div>;
+    return <div style={{ ...card, color: "#64748b" }}>Loading…</div>;
   }
 
   return (
     <>
-      {/* View toggle */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <button
           onClick={() => setView("calendar")}
@@ -181,23 +210,30 @@ export default function ScheduleEditor() {
         <CalendarView
           snapshot={snapshot}
           onTapDay={(ymd) => setExceptionModal({ ymd })}
+          onTapBooking={(id) => setBookingModal({ id })}
         />
       ) : (
-        <WeeklyEditor
-          rules={snapshot.rules}
-          onSaved={reload}
-        />
+        <WeeklyEditor rules={snapshot.rules} onSaved={reload} />
       )}
 
       {exceptionModal ? (
         <ExceptionModal
           ymd={exceptionModal.ymd}
-          existing={snapshot.exceptions.find(
-            (e) => e.date.slice(0, 10) === exceptionModal.ymd
-          )}
+          existing={snapshot.exceptions.find((e) => e.date.slice(0, 10) === exceptionModal.ymd)}
           onClose={() => setExceptionModal(null)}
           onSaved={async () => {
             setExceptionModal(null);
+            await reload();
+          }}
+        />
+      ) : null}
+
+      {bookingModal ? (
+        <BookingModal
+          id={bookingModal.id}
+          onClose={() => setBookingModal(null)}
+          onSaved={async () => {
+            setBookingModal(null);
             await reload();
           }}
         />
@@ -206,15 +242,17 @@ export default function ScheduleEditor() {
   );
 }
 
-// ============================================================
-// Calendar view â€” 4-week grid, each day shows windows or block reason
-// ============================================================
+// =============================================================
+// Calendar view
+// =============================================================
 function CalendarView({
   snapshot,
   onTapDay,
+  onTapBooking,
 }: {
   snapshot: Snapshot;
   onTapDay: (ymd: string) => void;
+  onTapBooking: (id: string) => void;
 }) {
   const days = snapshot.days;
   const exceptionsByDate = useMemo(() => {
@@ -229,86 +267,162 @@ function CalendarView({
     <div style={card}>
       <div style={sectionTitle}>Next 4 weeks</div>
       <p style={{ margin: "0 0 12px", color: "#64748b", fontSize: 13 }}>
-        Tap any day to add a one-off block (school, sick day) or extra open window.
+        Tap a day to add a one-off block or extra open window. Tap a booking to
+        change its duration or cancel.
       </p>
 
-      <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "grid", gap: 10 }}>
         {days.map((d) => {
           const ex = exceptionsByDate.get(d.date);
           const { dayName, monthDay } = ymdLabel(d.date);
           const isToday = d.date === today;
           const isClosed = d.windows.length === 0;
           const wholeBlock = ex && ex.isBlock && !ex.startTime;
+          const hasBookings = d.bookings.length > 0;
 
           return (
-            <button
+            <div
               key={d.date}
-              onClick={() => onTapDay(d.date)}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: "100%",
-                background: isClosed ? "#f1f5f9" : "white",
-                border: `1px solid ${isToday ? "#0EA5E9" : "#e2e8f0"}`,
+                border: "1px solid " + (isToday ? "#0EA5E9" : "#e2e8f0"),
                 borderLeft: isToday
                   ? "4px solid #0EA5E9"
                   : ex
-                    ? `4px solid ${ex.isBlock ? "#ef4444" : "#22c55e"}`
-                    : "1px solid #e2e8f0",
+                    ? "4px solid " + (ex.isBlock ? "#ef4444" : "#22c55e")
+                    : hasBookings
+                      ? "4px solid #6366f1"
+                      : "1px solid #e2e8f0",
+                background: isClosed && !hasBookings ? "#f1f5f9" : "white",
                 borderRadius: 10,
-                padding: "12px 14px",
-                cursor: "pointer",
-                textAlign: "left",
+                overflow: "hidden",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-                <div style={{ minWidth: 48 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                    {dayName}
+              {/* Day header (whole row tappable for adding a block/exception) */}
+              <button
+                onClick={() => onTapDay(d.date)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  padding: "12px 14px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                  <div style={{ minWidth: 48 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                      {dayName}
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: isToday ? "#0EA5E9" : "#111827" }}>
+                      {monthDay}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: isToday ? "#0EA5E9" : "#111827" }}>
-                    {monthDay}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    {wholeBlock ? (
+                      <div style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600 }}>
+                        Closed{ex.reason ? " — " + ex.reason : ""}
+                      </div>
+                    ) : isClosed ? (
+                      <div style={{ fontSize: 13, color: "#94a3b8" }}>Closed</div>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {d.windows.map((w, i) => (
+                          <span
+                            key={i}
+                            style={{
+                              fontSize: 12,
+                              background: "#e0f2fe",
+                              color: "#075985",
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {fmtMinutes(w.startMin)} – {fmtMinutes(w.endMin)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {ex && !wholeBlock ? (
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                        {ex.isBlock ? "Partial block" : "Extra window"}
+                        {ex.reason ? " · " + ex.reason : ""}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
+                <div style={{ color: "#94a3b8", fontSize: 18, marginLeft: 8 }}>+</div>
+              </button>
 
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  {wholeBlock ? (
-                    <div style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600 }}>
-                      Closed{ex.reason ? ` â€” ${ex.reason}` : ""}
-                    </div>
-                  ) : isClosed ? (
-                    <div style={{ fontSize: 13, color: "#94a3b8" }}>Closed</div>
-                  ) : (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {d.windows.map((w, i) => (
-                        <span
-                          key={i}
+              {/* Bookings on this day, listed below the day header */}
+              {hasBookings ? (
+                <div
+                  style={{
+                    borderTop: "1px solid #e2e8f0",
+                    background: "#f8fafc",
+                    padding: 8,
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  {d.bookings.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => onTapBooking(b.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: "white",
+                        border: "1px solid #c7d2fe",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        width: "100%",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: "#4338ca",
+                          minWidth: 92,
+                        }}
+                      >
+                        {b.startLabel}
+                        <span style={{ color: "#94a3b8", fontWeight: 500 }}>
+                          {" – "}
+                          {b.endLabel}
+                        </span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
                           style={{
-                            fontSize: 12,
-                            background: "#e0f2fe",
-                            color: "#075985",
-                            padding: "2px 8px",
-                            borderRadius: 999,
-                            fontWeight: 600,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: "#111827",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          {fmtMinutes(w.startMin)} â€“ {fmtMinutes(w.endMin)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {ex && !wholeBlock ? (
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                      {ex.isBlock ? "Partial block" : "Extra window"}
-                      {ex.reason ? ` Â· ${ex.reason}` : ""}
-                    </div>
-                  ) : null}
+                          {b.customerName ?? "Customer"} · {b.service}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          {fmtDuration(b.durationMin)}
+                        </div>
+                      </div>
+                      <span style={{ color: "#94a3b8", fontSize: 16 }}>›</span>
+                    </button>
+                  ))}
                 </div>
-              </div>
-
-              <div style={{ color: "#94a3b8", fontSize: 18, marginLeft: 8 }}>â€º</div>
-            </button>
+              ) : null}
+            </div>
           );
         })}
       </div>
@@ -316,11 +430,10 @@ function CalendarView({
   );
 }
 
-// ============================================================
-// Weekly hours editor â€” add / edit / remove recurring rules
-// ============================================================
+// =============================================================
+// Weekly editor (unchanged from Phase 2)
+// =============================================================
 function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }) {
-  // Local mutable copy â€” saved as a single PUT
   const [draft, setDraft] = useState<Rule[]>(() =>
     rules.map((r) => ({
       dayOfWeek: r.dayOfWeek,
@@ -332,7 +445,6 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Group by day-of-week so the UI shows Sun/Mon/.../Sat sections
   const byDay = useMemo(() => {
     const groups: Rule[][] = Array.from({ length: 7 }, () => []);
     draft.forEach((r) => groups[r.dayOfWeek].push(r));
@@ -356,10 +468,9 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
 
   async function save() {
     setError(null);
-    // Validate before sending
     for (const r of draft) {
       if (r.startTime >= r.endTime) {
-        setError(`${DOW_LONG[r.dayOfWeek]}: start must be before end`);
+        setError(DOW_LONG[r.dayOfWeek] + ": start must be before end");
         return;
       }
     }
@@ -372,7 +483,7 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${res.status}`);
+        throw new Error(data.error || "HTTP " + res.status);
       }
       onSaved();
     } catch (e) {
@@ -382,7 +493,6 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
     }
   }
 
-  // We need stable indices for updateWindow; build a map from (dow, position-in-group) â†’ index
   const draftIndices: number[][] = Array.from({ length: 7 }, () => []);
   draft.forEach((_, i) => draftIndices[draft[i].dayOfWeek].push(i));
 
@@ -390,15 +500,17 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
     <div style={card}>
       <div style={sectionTitle}>Weekly recurring hours</div>
       <p style={{ margin: "0 0 12px", color: "#64748b", fontSize: 13 }}>
-        Set the times you&apos;re normally available. Customers see these on the booking
-        form. Add multiple windows per day (e.g. afternoons + evenings).
+        Set the times you&apos;re normally available. Add multiple windows per day.
       </p>
 
       {byDay.map((windows, dow) => (
         <div key={dow} style={{ marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>{DOW_LONG[dow]}</div>
-            <button onClick={() => addWindow(dow)} style={{ ...secondaryBtn, padding: "6px 10px", fontSize: 12 }}>
+            <button
+              onClick={() => addWindow(dow)}
+              style={{ ...secondaryBtn, padding: "6px 10px", fontSize: 12 }}
+            >
               + Add window
             </button>
           </div>
@@ -411,7 +523,7 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
                 const idx = draftIndices[dow][posInGroup];
                 return (
                   <div
-                    key={`${dow}-${posInGroup}`}
+                    key={dow + "-" + posInGroup}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -428,14 +540,17 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
                       onChange={(e) => updateWindow(idx, { startTime: e.target.value })}
                       style={timeInputStyle}
                     />
-                    <span style={{ color: "#64748b" }}>â€“</span>
+                    <span style={{ color: "#64748b" }}>–</span>
                     <input
                       type="time"
                       value={w.endTime}
                       onChange={(e) => updateWindow(idx, { endTime: e.target.value })}
                       style={timeInputStyle}
                     />
-                    <button onClick={() => removeWindow(idx)} style={{ ...dangerBtn, padding: "8px 10px", fontSize: 12, marginLeft: "auto" }}>
+                    <button
+                      onClick={() => removeWindow(idx)}
+                      style={{ ...dangerBtn, padding: "8px 10px", fontSize: 12, marginLeft: "auto" }}
+                    >
                       Remove
                     </button>
                   </div>
@@ -451,7 +566,7 @@ function WeeklyEditor({ rules, onSaved }: { rules: Rule[]; onSaved: () => void }
       ) : null}
 
       <button onClick={save} disabled={saving} style={{ ...primaryBtn, width: "100%" }}>
-        {saving ? "Savingâ€¦" : "Save weekly hours"}
+        {saving ? "Saving…" : "Save weekly hours"}
       </button>
     </div>
   );
@@ -465,9 +580,9 @@ const timeInputStyle: React.CSSProperties = {
   background: "white",
 };
 
-// ============================================================
-// Exception modal â€” add/edit/delete a one-day block or open window
-// ============================================================
+// =============================================================
+// Exception modal (unchanged from Phase 2)
+// =============================================================
 function ExceptionModal({
   ymd,
   existing,
@@ -518,7 +633,7 @@ function ExceptionModal({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${res.status}`);
+        throw new Error(data.error || "HTTP " + res.status);
       }
       onSaved();
     } catch (e) {
@@ -540,7 +655,7 @@ function ExceptionModal({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${res.status}`);
+        throw new Error(data.error || "HTTP " + res.status);
       }
       onSaved();
     } catch (e) {
@@ -550,6 +665,354 @@ function ExceptionModal({
     }
   }
 
+  return (
+    <ModalSheet onClose={onClose}>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#64748b", textTransform: "uppercase" }}>
+          {dayName} · {monthDay}
+        </div>
+        <h2 style={{ margin: "4px 0 0", fontSize: 18, color: "#111827" }}>
+          {existing ? "Edit exception" : "Add exception"}
+        </h2>
+      </div>
+
+      <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+        {(
+          [
+            { id: "block-day", label: "Block whole day", desc: "School, sick, day off" },
+            { id: "block-partial", label: "Block part of day", desc: "Carve out a window" },
+            { id: "open-extra", label: "Add extra open window", desc: "Makeup or holiday" },
+          ] as const
+        ).map((opt) => (
+          <label
+            key={opt.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: 12,
+              border: "1px solid " + (mode === opt.id ? "#0EA5E9" : "#e2e8f0"),
+              background: mode === opt.id ? "#f0f9ff" : "white",
+              borderRadius: 10,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="radio"
+              name="mode"
+              checked={mode === opt.id}
+              onChange={() => setMode(opt.id)}
+              style={{ marginRight: 4 }}
+            />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{opt.label}</div>
+              <div style={{ fontSize: 12, color: "#64748b" }}>{opt.desc}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+
+      {mode !== "block-day" ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <input
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            style={{ ...timeInputStyle, flex: 1 }}
+          />
+          <span style={{ color: "#64748b" }}>–</span>
+          <input
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            style={{ ...timeInputStyle, flex: 1 }}
+          />
+        </div>
+      ) : null}
+
+      <input
+        type="text"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Reason (optional, e.g. school field trip)"
+        maxLength={80}
+        style={{
+          display: "block",
+          width: "100%",
+          border: "1px solid #cbd5e1",
+          borderRadius: 10,
+          padding: 12,
+          fontSize: 14,
+          marginBottom: 14,
+          background: "white",
+        }}
+      />
+
+      {error ? (
+        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 10 }}>{error}</div>
+      ) : null}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onClose} disabled={busy} style={{ ...secondaryBtn, flex: 1 }}>Cancel</button>
+        {existing ? (
+          <button onClick={remove} disabled={busy} style={{ ...dangerBtn, flex: 1 }}>
+            {busy ? "…" : "Delete"}
+          </button>
+        ) : null}
+        <button onClick={save} disabled={busy} style={{ ...primaryBtn, flex: 1 }}>
+          {busy ? "…" : "Save"}
+        </button>
+      </div>
+    </ModalSheet>
+  );
+}
+
+// =============================================================
+// Booking modal — Phase 2b: change duration, see customer info, cancel
+// =============================================================
+function BookingModal({
+  id,
+  onClose,
+  onSaved,
+}: {
+  id: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [detail, setDetail] = useState<BookingDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [duration, setDuration] = useState<number>(90);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/availability?action=booking&id=" + id, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = (await res.json()) as BookingDetail;
+        if (!cancelled) {
+          setDetail(data);
+          setDuration(data.durationMin);
+        }
+      } catch (e) {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : "Failed to load");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  async function saveDuration() {
+    setError(null);
+    if (duration < 15 || duration > 12 * 60) {
+      setError("Duration must be 15 min to 12 hr");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "bookingDuration", id, durationMin: duration }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "HTTP " + res.status);
+      }
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setStatus(status: "COMPLETED" | "CANCELED") {
+    if (!confirm("Mark this booking as " + status.toLowerCase() + "?")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "bookingStatus", id, status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "HTTP " + res.status);
+      }
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loadError) {
+    return (
+      <ModalSheet onClose={onClose}>
+        <p style={{ color: "#b91c1c" }}>Failed to load booking: {loadError}</p>
+        <button onClick={onClose} style={{ ...secondaryBtn, width: "100%", marginTop: 12 }}>Close</button>
+      </ModalSheet>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <ModalSheet onClose={onClose}>
+        <p style={{ color: "#64748b" }}>Loading…</p>
+      </ModalSheet>
+    );
+  }
+
+  // Common duration presets for quick taps
+  const presets = [30, 60, 90, 120, 150, 180, 240];
+
+  return (
+    <ModalSheet onClose={onClose}>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#4338ca", textTransform: "uppercase" }}>
+          Booking
+        </div>
+        <h2 style={{ margin: "4px 0 0", fontSize: 18, color: "#111827" }}>
+          {detail.customer?.name ?? "Customer"} · {detail.service}
+        </h2>
+        <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>
+          {detail.startLabel} – {detail.endLabel} · {fmtDuration(detail.durationMin)}
+        </div>
+      </div>
+
+      {/* Customer info */}
+      <div
+        style={{
+          background: "#f8fafc",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 12,
+          marginBottom: 14,
+          fontSize: 13,
+        }}
+      >
+        {detail.customer ? (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+              <span style={{ color: "#64748b" }}>Phone</span>
+              <a
+                href={"tel:" + detail.customer.phone}
+                style={{ color: "#0EA5E9", fontWeight: 700, textDecoration: "none" }}
+              >
+                {detail.customer.phone}
+              </a>
+            </div>
+            {detail.customer.address ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                <span style={{ color: "#64748b" }}>Address</span>
+                <span style={{ color: "#111827", textAlign: "right" }}>{detail.customer.address}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+          <span style={{ color: "#64748b" }}>Price</span>
+          <span style={{ color: "#111827", fontWeight: 700 }}>${(detail.priceCents / 100).toFixed(2)}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ color: "#64748b" }}>Status</span>
+          <span style={{ color: "#111827", fontWeight: 700 }}>{detail.status}</span>
+        </div>
+      </div>
+
+      {/* Duration editor */}
+      <div style={sectionTitle}>How long will this take?</div>
+      <p style={{ margin: "0 0 10px", color: "#64748b", fontSize: 12 }}>
+        Changing this opens or closes time slots for other customers automatically.
+      </p>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+        {presets.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setDuration(p)}
+            style={{
+              ...secondaryBtn,
+              padding: "8px 12px",
+              fontSize: 13,
+              background: duration === p ? "#0EA5E9" : "white",
+              color: duration === p ? "white" : "#475569",
+              borderColor: duration === p ? "#0EA5E9" : "#cbd5e1",
+            }}
+          >
+            {fmtDuration(p)}
+          </button>
+        ))}
+      </div>
+
+      <label style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 6 }}>
+        Or set exact minutes:
+      </label>
+      <input
+        type="number"
+        min={15}
+        max={720}
+        step={15}
+        value={duration}
+        onChange={(e) => setDuration(parseInt(e.target.value, 10) || 0)}
+        style={{
+          display: "block",
+          width: "100%",
+          border: "1px solid #cbd5e1",
+          borderRadius: 10,
+          padding: 12,
+          fontSize: 16,
+          marginBottom: 12,
+          background: "white",
+        }}
+      />
+
+      {error ? (
+        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 10 }}>{error}</div>
+      ) : null}
+
+      <button
+        onClick={saveDuration}
+        disabled={busy || duration === detail.durationMin}
+        style={{ ...primaryBtn, width: "100%", marginBottom: 10 }}
+      >
+        {busy ? "…" : duration === detail.durationMin ? "No change" : "Save duration (" + fmtDuration(duration) + ")"}
+      </button>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onClose} disabled={busy} style={{ ...secondaryBtn, flex: 1 }}>
+          Close
+        </button>
+        <button
+          onClick={() => setStatus("COMPLETED")}
+          disabled={busy}
+          style={{ ...secondaryBtn, flex: 1, color: "#15803d", borderColor: "#bbf7d0" }}
+        >
+          Mark done
+        </button>
+        <button
+          onClick={() => setStatus("CANCELED")}
+          disabled={busy}
+          style={{ ...dangerBtn, flex: 1 }}
+        >
+          Cancel
+        </button>
+      </div>
+    </ModalSheet>
+  );
+}
+
+// =============================================================
+// Reusable bottom-sheet modal
+// =============================================================
+function ModalSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
     <div
       role="dialog"
@@ -579,104 +1042,7 @@ function ExceptionModal({
           overflowY: "auto",
         }}
       >
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "#64748b", textTransform: "uppercase" }}>
-            {dayName} Â· {monthDay}
-          </div>
-          <h2 style={{ margin: "4px 0 0", fontSize: 18, color: "#111827" }}>
-            {existing ? "Edit exception" : "Add exception"}
-          </h2>
-        </div>
-
-        <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
-          {(
-            [
-              { id: "block-day", label: "Block whole day", desc: "School, sick, day off" },
-              { id: "block-partial", label: "Block part of day", desc: "Carve out a window" },
-              { id: "open-extra", label: "Add extra open window", desc: "Makeup or holiday" },
-            ] as const
-          ).map((opt) => (
-            <label
-              key={opt.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: 12,
-                border: `1px solid ${mode === opt.id ? "#0EA5E9" : "#e2e8f0"}`,
-                background: mode === opt.id ? "#f0f9ff" : "white",
-                borderRadius: 10,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="radio"
-                name="mode"
-                checked={mode === opt.id}
-                onChange={() => setMode(opt.id)}
-                style={{ marginRight: 4 }}
-              />
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{opt.label}</div>
-                <div style={{ fontSize: 12, color: "#64748b" }}>{opt.desc}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-
-        {mode !== "block-day" ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              style={{ ...timeInputStyle, flex: 1 }}
-            />
-            <span style={{ color: "#64748b" }}>â€“</span>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              style={{ ...timeInputStyle, flex: 1 }}
-            />
-          </div>
-        ) : null}
-
-        <input
-          type="text"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Reason (optional, e.g. school field trip)"
-          maxLength={80}
-          style={{
-            display: "block",
-            width: "100%",
-            border: "1px solid #cbd5e1",
-            borderRadius: 10,
-            padding: 12,
-            fontSize: 14,
-            marginBottom: 14,
-            background: "white",
-          }}
-        />
-
-        {error ? (
-          <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 10 }}>{error}</div>
-        ) : null}
-
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onClose} disabled={busy} style={{ ...secondaryBtn, flex: 1 }}>
-            Cancel
-          </button>
-          {existing ? (
-            <button onClick={remove} disabled={busy} style={{ ...dangerBtn, flex: 1 }}>
-              {busy ? "â€¦" : "Delete"}
-            </button>
-          ) : null}
-          <button onClick={save} disabled={busy} style={{ ...primaryBtn, flex: 1 }}>
-            {busy ? "â€¦" : "Save"}
-          </button>
-        </div>
+        {children}
       </div>
     </div>
   );

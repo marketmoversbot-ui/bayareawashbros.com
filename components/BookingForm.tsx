@@ -1,11 +1,12 @@
 "use client";
 
-// Updated booking form (Phase 2):
-// - Fetches live availability from /api/availability (driven by the database)
-// - Customer picks a date that has open slots, then a time slot
-// - On submit, posts to the Stripe checkout stub (Phase 4 will wire this up properly)
+// Phase 2b booking form (replaces previous DB-driven version):
+// - User picks a service first; service determines slot duration
+// - Available dates re-fetch when service changes
+// - Submit posts to the existing Stripe checkout stub with service + slot info
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { SERVICES, formatDuration } from "../lib/services";
 
 type ApiSlot = { iso: string; label: string };
 type ApiDay = { date: string; slots: ApiSlot[] };
@@ -50,7 +51,6 @@ const slotLabel: React.CSSProperties = {
 
 function ymdLabel(ymd: string): string {
   const [y, m, d] = ymd.split("-").map((s) => parseInt(s, 10));
-  // Build a UTC noon date so the formatter doesn't shift across timezones.
   const dt = new Date(Date.UTC(y, m - 1, d, 12));
   return dt.toLocaleDateString("en-US", {
     timeZone: "UTC",
@@ -61,6 +61,8 @@ function ymdLabel(ymd: string): string {
 }
 
 export default function BookingForm() {
+  // Default to first service so the form has something to query on mount
+  const [serviceId, setServiceId] = useState<string>(SERVICES[0].id);
   const [days, setDays] = useState<ApiDay[]>([]);
   const [loadingDays, setLoadingDays] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -69,13 +71,26 @@ export default function BookingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Fetch availability once on mount.
+  const currentService = useMemo(
+    () => SERVICES.find((s) => s.id === serviceId) ?? SERVICES[0],
+    [serviceId]
+  );
+
+  // Refetch availability whenever service changes
   useEffect(() => {
     let cancelled = false;
+    setLoadingDays(true);
+    setLoadError(null);
+    setSelectedDate("");
+    setSelectedSlotIso("");
+
     (async () => {
       try {
-        const res = await fetch("/api/availability", { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await fetch(
+          "/api/availability?service=" + encodeURIComponent(serviceId),
+          { cache: "no-store" }
+        );
+        if (!res.ok) throw new Error("HTTP " + res.status);
         const data = (await res.json()) as { days: ApiDay[] };
         if (!cancelled) setDays(data.days ?? []);
       } catch (e) {
@@ -87,7 +102,7 @@ export default function BookingForm() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [serviceId]);
 
   const slotsForDate = useMemo(() => {
     if (!selectedDate) return [];
@@ -107,6 +122,9 @@ export default function BookingForm() {
     const form = new FormData(formEl);
     const payload = {
       ...Object.fromEntries(form.entries()),
+      service: currentService.id,
+      serviceName: currentService.name,
+      durationMin: currentService.defaultDurationMin,
       date: selectedDate,
       slotIso: selectedSlotIso,
     };
@@ -158,12 +176,31 @@ export default function BookingForm() {
         style={inputStyle}
       />
 
+      {/* Service picker — changes the slot duration shown below */}
+      <label style={{ display: "block", fontWeight: 600, margin: "8px 0 6px" }}>
+        What needs cleaning?
+      </label>
+      <select
+        value={serviceId}
+        onChange={(e) => setServiceId(e.target.value)}
+        required
+        style={inputStyle}
+      >
+        {SERVICES.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name} — about {formatDuration(s.defaultDurationMin)}
+          </option>
+        ))}
+      </select>
+
       <label style={{ display: "block", fontWeight: 600, margin: "8px 0 6px" }}>
         Pick a date
       </label>
 
       {loadingDays ? (
-        <p style={{ margin: "4px 0", color: "#64748b", fontSize: 14 }}>Loading available datesâ€¦</p>
+        <p style={{ margin: "4px 0", color: "#64748b", fontSize: 14 }}>
+          Loading available dates…
+        </p>
       ) : loadError ? (
         <p style={{ margin: "4px 0", color: "#b45309", fontSize: 14 }}>
           Could not load availability. Please text 832-881-9960 to book.
@@ -174,7 +211,6 @@ export default function BookingForm() {
         </p>
       ) : (
         <select
-          name="date-display"
           value={selectedDate}
           onChange={(e) => {
             setSelectedDate(e.target.value);
@@ -183,7 +219,7 @@ export default function BookingForm() {
           required
           style={inputStyle}
         >
-          <option value="">Choose a dateâ€¦</option>
+          <option value="">Choose a date…</option>
           {days.map((d) => (
             <option key={d.date} value={d.date}>
               {ymdLabel(d.date)}
