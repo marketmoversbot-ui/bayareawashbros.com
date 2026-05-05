@@ -2,7 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 
 const inputStyle: React.CSSProperties = {
   display: "block",
@@ -29,7 +29,9 @@ const buttonStyle: React.CSSProperties = {
   marginTop: 4,
 };
 
-export default function AdminLoginPage() {
+// Inner form is split out so we can wrap it in Suspense — required by
+// Next.js 16 because we use useSearchParams (which suspends during SSR).
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const callbackUrl = params.get("callbackUrl") ?? "/admin";
@@ -58,6 +60,38 @@ export default function AdminLoginPage() {
     }
   }
 
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        placeholder="Email"
+        autoComplete="email"
+        inputMode="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={inputStyle}
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        autoComplete="current-password"
+        required
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={inputStyle}
+      />
+      <button type="submit" disabled={loading} style={buttonStyle}>
+        {loading ? "Signing in..." : "Sign in"}
+      </button>
+      {error ? (
+        <p style={{ color: "#b91c1c", marginTop: 12, fontWeight: 600 }}>{error}</p>
+      ) : null}
+    </form>
+  );
+}
+
+export default function AdminLoginPage() {
   return (
     <main
       style={{
@@ -95,33 +129,9 @@ export default function AdminLoginPage() {
           <h1 style={{ margin: 0, fontSize: 22, color: "#111827" }}>Admin sign in</h1>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            autoComplete="email"
-            inputMode="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={inputStyle}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={inputStyle}
-          />
-          <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
-          {error ? (
-            <p style={{ color: "#b91c1c", marginTop: 12, fontWeight: 600 }}>{error}</p>
-          ) : null}
-        </form>
+        <Suspense fallback={<div style={{ height: 180 }} />}>
+          <LoginForm />
+        </Suspense>
       </div>
     </main>
   );
