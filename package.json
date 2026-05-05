@@ -20,7 +20,8 @@
     "next": "latest",
     "next-auth": "^4.24.10",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "twilio": "^5.3.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
