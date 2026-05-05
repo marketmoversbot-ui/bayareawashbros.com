@@ -55,7 +55,7 @@ export default function StickyMobileCTA() {
           transition: "transform 220ms ease",
         }}
       >
-        
+        <a
           href="#photo"
           style={{
             display: "block",
