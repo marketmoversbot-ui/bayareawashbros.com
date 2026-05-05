@@ -9,8 +9,7 @@
 // Durations are an estimate. The customer's selection determines the slot
 // length on the public booking form, AND becomes the booking's initial
 // endsAt. The owner can override the duration per-booking from the admin
-// schedule view (which shifts endsAt and re-opens or re-closes neighboring
-// slots automatically).
+// schedule view.
 
 export type ServiceDef = {
   id: string;          // stable identifier stored in the booking record
@@ -43,24 +42,45 @@ export const SERVICES: ServiceDef[] = [
     defaultDurationMin: 90, // 1.5 hr
   },
   {
+    id: "sidewalk",
+    name: "Sidewalks",
+    pitch: "Restore curb appeal at the street",
+    startingAt: 50,
+    defaultDurationMin: 30,
+  },
+  {
+    id: "mailbox",
+    name: "Mailbox",
+    pitch: "Quick refresh while we're already there",
+    startingAt: 15,
+    defaultDurationMin: 15,
+  },
+  {
     id: "trashcans",
     name: "Trash Cans",
     pitch: "Hot rinse, scrub, and deodorize",
     startingAt: 20,
-    defaultDurationMin: 30, // 30 min
+    defaultDurationMin: 30,
   },
   {
     id: "fence",
     name: "Fence",
     pitch: "Wood, vinyl, or metal — restored",
     startingAt: 120,
-    defaultDurationMin: 120, // 2 hr
+    defaultDurationMin: 120,
+  },
+  {
+    id: "boatdock",
+    name: "Boat Dock",
+    pitch: "Knock off algae, salt, and dock grime",
+    startingAt: 200,
+    defaultDurationMin: 120,
   },
 ];
 
 // Helper: look up duration by service id, with a safe fallback.
 export function durationForService(id: string | null | undefined): number {
-  if (!id) return 90; // legacy / unknown -> 90 min
+  if (!id) return 90;
   const s = SERVICES.find((x) => x.id === id);
   return s ? s.defaultDurationMin : 90;
 }
