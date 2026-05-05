@@ -1,0 +1,131 @@
+// Bay Area Wash Bros — data model
+// Postgres on Railway. One schema covers all phases (auth, scheduling, SMS, bookings).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Auth ----------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+}
+
+// ---------- People & jobs ----------
+
+model Customer {
+  id        String    @id @default(cuid())
+  // E.164 format, e.g. "+18328819960"
+  phone     String    @unique
+  name      String?
+  address   String?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  bookings  Booking[]
+  messages  Message[]
+}
+
+model Booking {
+  id              String         @id @default(cuid())
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  startsAt        DateTime
+  endsAt          DateTime
+  service         String         // e.g. "Driveway + sidewalk"
+  priceCents      Int
+  status          BookingStatus  @default(PENDING)
+  paymentStatus   PaymentStatus  @default(UNPAID)
+
+  stripeSessionId String?
+  googleEventId   String?
+  notes           String?
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([startsAt])
+  @@index([status])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELED
+}
+
+enum PaymentStatus {
+  UNPAID
+  DEPOSIT_PAID
+  PAID
+  REFUNDED
+}
+
+// ---------- Availability ----------
+
+// Recurring weekly availability windows.
+// Example: { dayOfWeek: 4, startTime: "15:30", endTime: "19:30" } = Thursday 3:30pm-7:30pm.
+model AvailabilityRule {
+  id        String  @id @default(cuid())
+  dayOfWeek Int     // 0 = Sunday ... 6 = Saturday
+  startTime String  // "HH:MM" 24h
+  endTime   String  // "HH:MM" 24h
+  active    Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+
+// One-off overrides. Either blocks a day/window (school, sick day) or
+// opens a window that wouldn't normally be available (makeup job, holiday).
+model AvailabilityException {
+  id        String   @id @default(cuid())
+  date      DateTime // calendar date (we ignore the time component)
+  isBlock   Boolean  // true = unavailable, false = extra open window
+  startTime String?  // optional partial-day window in "HH:MM"
+  endTime   String?
+  reason    String?  // free text e.g. "school field trip"
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+// ---------- SMS ----------
+
+model Message {
+  id         String           @id @default(cuid())
+  customerId String
+  customer   Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  direction  MessageDirection
+  body       String
+  twilioSid  String?
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([read])
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+// Tap-to-send canned replies the son can manage from the admin.
+model QuickReply {
+  id        String   @id @default(cuid())
+  label     String   // short button label, e.g. "On my way"
+  body      String   // full SMS text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
