@@ -340,7 +340,11 @@ export default function Home() {
             <span aria-hidden>★</span> Pressure washing · League City
           </div>
 
-          <AnimatedHeadline style={heroH1Style}>
+          <AnimatedHeadline
+            style={heroH1Style}
+            line1="Make Your Home Look"
+            line2="Brand New This Weekend."
+          >
             Make Your Home Look Brand New —{" "}
             <span style={{ color: accent }}>This Weekend.</span>
           </AnimatedHeadline>
