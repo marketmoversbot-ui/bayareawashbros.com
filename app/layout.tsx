@@ -1,15 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import { Paytone_One } from "next/font/google";
 import "./globals.css";
 import WeatherStrip from "../components/WeatherStrip";
 
-// Manrope — soft, approachable modern sans. Used for the brand name in
-// the header. Weight 800 (ExtraBold) for confident presence without the
-// "shouting display caps" feel.
-const manrope = Manrope({
-  weight: ["800"],
+// Paytone One — heavy modern friendly display font. Used for the brand name
+// in the header. Reads warm and approachable, matches the cartoon mascot's
+// energy without feeling childish.
+const paytoneOne = Paytone_One({
+  weight: ["400"],
   subsets: ["latin"],
-  variable: "--font-manrope",
+  variable: "--font-paytone",
   display: "swap",
 });
 
@@ -36,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={manrope.variable}>
+    <html lang="en" className={paytoneOne.variable}>
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />

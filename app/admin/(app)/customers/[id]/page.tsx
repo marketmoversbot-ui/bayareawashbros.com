@@ -44,6 +44,13 @@ type Message = {
   read: boolean;
 };
 
+// Internal admin note (running log of conversations and context)
+type Note = {
+  id: string;
+  body: string;
+  createdAt: string;
+};
+
 type Customer = {
   id: string;
   name: string | null;
@@ -136,6 +143,13 @@ export default function CustomerDetailPage({
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
+  // Internal admin notes state — running log of conversations / context
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [newNoteBody, setNewNoteBody] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -152,6 +166,58 @@ export default function CustomerDetailPage({
       cancelled = true;
     };
   }, [id]);
+
+  // Load the customer's notes log on mount and after we add a new one
+  useEffect(() => {
+    let cancelled = false;
+    setNotesLoading(true);
+    setNotesError(null);
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/customers/" + id + "/notes", {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = (await res.json()) as { notes: Note[] };
+        if (!cancelled) setNotes(data.notes);
+      } catch (e) {
+        if (!cancelled) {
+          setNotesError(e instanceof Error ? e.message : "Failed to load notes");
+        }
+      } finally {
+        if (!cancelled) setNotesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  async function saveNote() {
+    const body = newNoteBody.trim();
+    if (!body || savingNote) return;
+    setSavingNote(true);
+    setNotesError(null);
+    try {
+      const res = await fetch("/api/admin/customers/" + id + "/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "HTTP " + res.status);
+      }
+      const note = (await res.json()) as Note;
+      // Prepend so newest is at top — matches display order
+      setNotes([note, ...notes]);
+      setNewNoteBody("");
+    } catch (e) {
+      setNotesError(e instanceof Error ? e.message : "Failed to save note");
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   async function setStatus(newStatus: Status) {
     if (!customer) return;
@@ -591,6 +657,145 @@ export default function CustomerDetailPage({
           </div>
         </>
       ) : null}
+
+      {/* Notes — running log of conversations / context */}
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: 1.2,
+          textTransform: "uppercase",
+          color: "#64748b",
+          marginBottom: 8,
+        }}
+      >
+        Notes
+      </div>
+
+      {/* New note input */}
+      <div
+        style={{
+          background: "white",
+          border: "1px solid #e2e8f0",
+          borderRadius: 12,
+          padding: 12,
+          marginBottom: 8,
+        }}
+      >
+        <textarea
+          value={newNoteBody}
+          onChange={(e) => setNewNoteBody(e.target.value)}
+          placeholder="Add a note... (e.g., Called him at 9am, no answer, left voicemail)"
+          rows={3}
+          maxLength={2000}
+          style={{
+            display: "block",
+            width: "100%",
+            border: "1px solid #e2e8f0",
+            borderRadius: 8,
+            padding: 10,
+            fontSize: 14,
+            fontFamily: "inherit",
+            lineHeight: 1.45,
+            resize: "vertical",
+            background: "#f8fafc",
+            boxSizing: "border-box",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 8,
+            gap: 10,
+          }}
+        >
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>
+            {newNoteBody.length}/2000
+          </span>
+          <button
+            type="button"
+            onClick={saveNote}
+            disabled={savingNote || !newNoteBody.trim()}
+            style={{
+              background:
+                savingNote || !newNoteBody.trim() ? "#cbd5e1" : "#0EA5E9",
+              color: "white",
+              border: "none",
+              padding: "8px 16px",
+              borderRadius: 8,
+              fontWeight: 800,
+              fontSize: 13,
+              cursor:
+                savingNote || !newNoteBody.trim() ? "default" : "pointer",
+            }}
+          >
+            {savingNote ? "Saving…" : "Save Note"}
+          </button>
+        </div>
+        {notesError ? (
+          <div
+            style={{
+              marginTop: 8,
+              padding: 8,
+              background: "#fee2e2",
+              border: "1px solid #fecaca",
+              color: "#b91c1c",
+              borderRadius: 6,
+              fontSize: 12,
+            }}
+          >
+            {notesError}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Existing notes list — newest first */}
+      {notesLoading ? (
+        <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 18 }}>
+          Loading notes…
+        </div>
+      ) : notes.length === 0 ? (
+        <div
+          style={{
+            fontSize: 13,
+            color: "#94a3b8",
+            fontStyle: "italic",
+            marginBottom: 18,
+          }}
+        >
+          No notes yet.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 6, marginBottom: 18 }}>
+          {notes.map((n) => (
+            <div
+              key={n.id}
+              style={{
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                borderRadius: 10,
+                padding: 10,
+              }}
+            >
+              <div style={{ fontSize: 11, color: "#92400e", marginBottom: 4 }}>
+                {formatTimestamp(n.createdAt)}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: "#0F172A",
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.5,
+                }}
+              >
+                {n.body}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Quick replies */}
       <div

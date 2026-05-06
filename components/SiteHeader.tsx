@@ -2,9 +2,9 @@
 
 import BrandMark from "./BrandMark";
 
-// Public site header. "Bay Area Wash Bros." rendered in Manrope ExtraBold —
-// soft, approachable modern sans. Mixed case (no uppercase transform) so
-// it reads as a brand name, not a sign.
+// Public site header. "Bay Area Wash Bros." rendered in Paytone One —
+// heavy modern friendly display font. Mixed case so it reads as a brand name,
+// not a sign.
 
 export default function SiteHeader() {
   return (
@@ -44,9 +44,9 @@ export default function SiteHeader() {
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontFamily: "Manrope, system-ui, -apple-system, sans-serif",
-                fontSize: "clamp(20px, 4.2vw, 26px)",
-                fontWeight: 800,
+                fontFamily: "var(--font-paytone), 'Paytone One', system-ui, -apple-system, sans-serif",
+                fontSize: "clamp(22px, 4.4vw, 28px)",
+                fontWeight: 400,
                 letterSpacing: "-0.02em",
                 lineHeight: 1.05,
                 whiteSpace: "nowrap",

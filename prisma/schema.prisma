@@ -38,8 +38,9 @@ model Customer {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  bookings  Booking[]
-  messages  Message[]
+  bookings      Booking[]
+  messages      Message[]
+  customerNotes CustomerNote[]
 
   @@index([status])
 }
@@ -141,6 +142,19 @@ model Message {
 enum MessageDirection {
   INBOUND
   OUTBOUND
+}
+
+// Internal admin-only notes about a customer. Append-only running log of
+// conversations, quote details, callbacks, anything worth remembering.
+// Distinct from Message (which represents inbound/outbound communications).
+model CustomerNote {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  body       String   @db.VarChar(2000)
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, createdAt])
 }
 
 model QuickReply {

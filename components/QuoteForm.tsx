@@ -5,8 +5,8 @@
 // Customer fills out:
 //   - Name, phone, address (required)
 //   - What needs cleaning? (dropdown — services + "Other")
-//   - Anything else? (free-text textarea, always shown)
-//   - Photos (optional, up to 8)
+//   - Anything else? (free-text textarea)
+//   - Photos (optional, drag-and-drop OR tap to browse)
 //
 // Submit posts FormData to /api/photo-quote, which:
 //   - Upserts the Customer (status=LEAD on new customer)
@@ -15,7 +15,7 @@
 //
 // Customer sees: "Got it — we'll get back to you with a price as soon as we can."
 
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type DragEvent } from "react";
 import { SERVICES } from "../lib/services";
 
 const MAX_FILES = 8;
@@ -66,32 +66,85 @@ const labelStyle: React.CSSProperties = {
 
 export default function QuoteForm() {
   const formRef = useRef<HTMLFormElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+  // Shared validation that handles both file picker and drop events
+  function processFiles(picked: File[]) {
     setFileError(null);
-    const list = e.target.files;
-    if (!list) {
-      setFiles([]);
+
+    // Filter to images only (drag-drop can include any file type)
+    const images = picked.filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0 && picked.length > 0) {
+      setFileError("Please drop image files only.");
       return;
     }
-    const arr = Array.from(list);
-    if (arr.length > MAX_FILES) {
-      setFileError("Max " + MAX_FILES + " photos. Picked first " + MAX_FILES + ".");
-      arr.length = MAX_FILES;
+
+    let working = [...files, ...images];
+    if (working.length > MAX_FILES) {
+      setFileError("Max " + MAX_FILES + " photos.");
+      working = working.slice(0, MAX_FILES);
     }
-    for (const f of arr) {
+
+    const valid: File[] = [];
+    let oversized = false;
+    for (const f of working) {
       if (f.size > MAX_FILE_BYTES) {
-        setFileError("'" + f.name + "' is over 5MB. Skipping.");
-        // drop oversized files
+        oversized = true;
         continue;
       }
+      valid.push(f);
     }
-    setFiles(arr.filter((f) => f.size <= MAX_FILE_BYTES));
+    if (oversized) {
+      setFileError("Some photos were over 5MB and skipped.");
+    }
+    setFiles(valid);
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const list = e.target.files;
+    if (!list) return;
+    // Replace, don't append, when using the file picker (matches user's mental model)
+    setFiles([]);
+    setTimeout(() => processFiles(Array.from(list)), 0);
+  }
+
+  function onDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const dropped = Array.from(e.dataTransfer.files);
+    processFiles(dropped);
+  }
+
+  function onDragOver(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }
+
+  function onDragEnter(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }
+
+  function onDragLeave(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only reset if we left the entire drop zone (not a child element)
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  }
+
+  function removePhoto(idx: number) {
+    setFiles(files.filter((_, i) => i !== idx));
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -101,7 +154,8 @@ export default function QuoteForm() {
     const formEl = e.currentTarget;
     const data = new FormData(formEl);
 
-    // Replace photos in FormData with the validated list from state
+    // The native file input may already have the files in the FormData,
+    // but our state (with drag-drop) is the source of truth — replace.
     data.delete("photos");
     for (const f of files) {
       data.append("photos", f);
@@ -182,6 +236,20 @@ export default function QuoteForm() {
     );
   }
 
+  // Drop zone styling — changes when files are being dragged over
+  const dropZoneStyle: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    padding: "28px 16px",
+    marginBottom: 10,
+    border: isDragging ? "2px dashed #0EA5E9" : "2px dashed #cbd5e1",
+    borderRadius: 10,
+    background: isDragging ? "rgba(14,165,233,0.08)" : "#f8fafc",
+    cursor: "pointer",
+    textAlign: "center",
+    transition: "background 0.15s, border-color 0.15s",
+  };
+
   return (
     <form ref={formRef} onSubmit={handleSubmit}>
       <input
@@ -239,23 +307,121 @@ export default function QuoteForm() {
         style={textareaStyle}
       />
 
-      <label style={labelStyle} htmlFor="qf-photos">
-        Photos (optional, helps us quote faster)
-      </label>
+      <label style={labelStyle}>Photos (optional, helps us quote faster)</label>
+
+      {/* Drag-and-drop zone */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        style={dropZoneStyle}
+      >
+        <div style={{ fontSize: 28, marginBottom: 6 }} aria-hidden>
+          {isDragging ? "📥" : "📷"}
+        </div>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: isDragging ? "#0369a1" : "#475569",
+            marginBottom: 4,
+          }}
+        >
+          {isDragging ? "Drop photos here" : "Drag photos here, or tap to browse"}
+        </div>
+        <div style={{ fontSize: 12, color: "#64748b" }}>
+          Up to {MAX_FILES} photos · 5MB each
+        </div>
+      </div>
+
+      {/* Hidden native file input — opens when drop zone is clicked */}
       <input
+        ref={fileInputRef}
         id="qf-photos"
         type="file"
         name="photos"
         accept="image/*"
         multiple
         onChange={onPickFiles}
-        style={{ ...inputStyle, padding: 8 }}
+        style={{ display: "none" }}
       />
+
+      {/* Show selected files with remove buttons */}
       {files.length > 0 ? (
-        <p style={{ margin: "0 0 10px", fontSize: 13, color: "#475569" }}>
-          {files.length} photo{files.length === 1 ? "" : "s"} attached
-        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
+            gap: 6,
+            marginBottom: 10,
+          }}
+        >
+          {files.map((f, idx) => (
+            <div
+              key={idx}
+              style={{
+                position: "relative",
+                aspectRatio: "1",
+                borderRadius: 8,
+                overflow: "hidden",
+                border: "1px solid #e2e8f0",
+                background: "#f1f5f9",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={URL.createObjectURL(f)}
+                alt={f.name}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removePhoto(idx);
+                }}
+                aria-label="Remove photo"
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  border: "none",
+                  background: "rgba(15,23,42,0.85)",
+                  color: "white",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  padding: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
       ) : null}
+
       {fileError ? (
         <p style={{ margin: "0 0 10px", fontSize: 13, color: "#b45309" }}>
           {fileError}
