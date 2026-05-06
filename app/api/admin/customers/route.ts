@@ -1,9 +1,10 @@
 // Admin customer list endpoint.
 //
-// Returns customers ordered by their most recent booking (descending), with
-// a summary of: total bookings, last booking date, last service, total spent.
-// Includes the customer's lifecycle status (LEAD/PENDING/BOOKED/LOST) for
-// inbox color coding.
+// Sort rule: most recent activity wins. Activity = either the latest booking
+// startsAt OR the latest inbound/outbound message createdAt, whichever is more
+// recent. Booking status (PENDING/CONFIRMED/etc.) does NOT affect order — a
+// brand-new quote request is always more time-sensitive than a job that's
+// already been booked, so it should sit at the top until the admin acts on it.
 
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -57,19 +58,26 @@ export async function GET() {
             b.startsAt.getTime() > Date.now()
         );
         const lastMessage = c.messages[0] ?? null;
+        // The "most recent activity" timestamp is what we sort by.
+        // We use createdAt for messages (when it came in) and startsAt for
+        // bookings (when the job is scheduled — proxy for when admin last
+        // touched the customer's calendar).
+        const latestActivity = Math.max(
+          latest?.startsAt.getTime() ?? 0,
+          lastMessage?.createdAt.getTime() ?? 0,
+          c.updatedAt.getTime()
+        );
         return {
           id: c.id,
           name: c.name,
           phone: c.phone,
           address: c.address,
-          status: c.status, // LEAD | PENDING | BOOKED | LOST
+          status: c.status,
           createdAt: c.createdAt.toISOString(),
           bookingCount: c.bookings.length,
           totalCents,
           latestBookingAt: latest?.startsAt.toISOString() ?? null,
           latestService: latest?.service ?? null,
-          // For lead-only customers (no bookings yet), show their last message
-          // service / timestamp so the inbox row has something to display
           lastMessageAt: lastMessage?.createdAt.toISOString() ?? null,
           lastMessageService: lastMessage?.service ?? null,
           upcoming: upcoming
@@ -79,22 +87,14 @@ export async function GET() {
                 service: upcoming.service,
               }
             : null,
+          // Internal-only sort key, removed from response below
+          _sortKey: latestActivity,
         };
       })
-      .sort((a, b) => {
-        // Upcoming bookings first, then by latest activity (booking or message)
-        if (a.upcoming && !b.upcoming) return -1;
-        if (!a.upcoming && b.upcoming) return 1;
-        const aT = Math.max(
-          a.latestBookingAt ? Date.parse(a.latestBookingAt) : 0,
-          a.lastMessageAt ? Date.parse(a.lastMessageAt) : 0
-        );
-        const bT = Math.max(
-          b.latestBookingAt ? Date.parse(b.latestBookingAt) : 0,
-          b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0
-        );
-        return bT - aT;
-      });
+      .sort((a, b) => b._sortKey - a._sortKey)
+      // Strip the sort key before returning
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .map(({ _sortKey, ...rest }) => rest);
 
     return NextResponse.json({ customers: summarized });
   } catch (err) {
