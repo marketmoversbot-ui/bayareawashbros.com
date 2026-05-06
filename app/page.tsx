@@ -336,11 +336,11 @@ export default function Home() {
               marginBottom: 18,
             }}
           >
-            <span aria-hidden>â˜…</span> Pressure washing Â· League City
+            <span aria-hidden>★</span> Pressure washing · League City
           </div>
 
           <h1 style={heroH1Style}>
-            Make Your Home Look Brand New â€”{" "}
+            Make Your Home Look Brand New —{" "}
             <span style={{ color: accent }}>This Weekend.</span>
           </h1>
 
@@ -378,7 +378,7 @@ export default function Home() {
                   fontWeight: 600,
                 }}
               >
-                <span aria-hidden style={{ color: accent }}>âœ“</span>{t}
+                <span aria-hidden style={{ color: accent }}>✓</span>{t}
               </span>
             ))}
           </div>
@@ -630,7 +630,7 @@ export default function Home() {
             </a>
           </div>
           <p style={{ marginTop: 32, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
-            Â© {new Date().getFullYear()} Bay Area Wash Bros. Â· League City, TX
+            © {new Date().getFullYear()} Bay Area Wash Bros. · League City, TX
           </p>
         </div>
       </footer>
