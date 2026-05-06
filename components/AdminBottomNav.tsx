@@ -7,10 +7,8 @@ type Tab = {
   href: string;
   label: string;
   icon: React.ReactNode;
-  // matches if pathname === href OR starts with href + "/"
 };
 
-// Inline SVG icons keep us off any icon library and stay tiny.
 const Icon = {
   Inbox: (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -34,11 +32,11 @@ const Icon = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
-  More: (
+  Reports: (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
     </svg>
   ),
 };
@@ -47,7 +45,7 @@ const tabs: Tab[] = [
   { href: "/admin", label: "Inbox", icon: Icon.Inbox },
   { href: "/admin/schedule", label: "Schedule", icon: Icon.Calendar },
   { href: "/admin/customers", label: "Customers", icon: Icon.Users },
-  { href: "/admin/more", label: "More", icon: Icon.More },
+  { href: "/admin/reports", label: "Reports", icon: Icon.Reports },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -69,7 +67,7 @@ export default function AdminBottomNav() {
         background: "white",
         borderTop: "1px solid #e2e8f0",
         display: "grid",
-        gridTemplateColumns: `repeat(${tabs.length}, 1fr)`,
+        gridTemplateColumns: "repeat(" + tabs.length + ", 1fr)",
         paddingBottom: "env(safe-area-inset-bottom)",
         zIndex: 50,
       }}

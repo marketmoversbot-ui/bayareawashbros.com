@@ -48,6 +48,11 @@ model Booking {
   status          BookingStatus  @default(PENDING)
   paymentStatus   PaymentStatus  @default(UNPAID)
 
+  // Payment tracking — populated when marked paid
+  paymentMethod   String?        // "CASH" | "VENMO" | "ZELLE" | "CHECK" | "OTHER"
+  paymentNote     String?        // free-text, e.g. "his uncle paid", check #1234
+  paidAt          DateTime?      // when the payment was recorded
+
   stripeSessionId String?
   googleEventId   String?
   notes           String?
@@ -57,6 +62,7 @@ model Booking {
 
   @@index([startsAt])
   @@index([status])
+  @@index([paymentStatus])
 }
 
 enum BookingStatus {
@@ -75,26 +81,22 @@ enum PaymentStatus {
 
 // ---------- Availability ----------
 
-// Recurring weekly availability windows.
-// Example: { dayOfWeek: 4, startTime: "15:30", endTime: "19:30" } = Thursday 3:30pm-7:30pm.
 model AvailabilityRule {
   id        String  @id @default(cuid())
-  dayOfWeek Int     // 0 = Sunday ... 6 = Saturday
-  startTime String  // "HH:MM" 24h
-  endTime   String  // "HH:MM" 24h
+  dayOfWeek Int
+  startTime String
+  endTime   String
   active    Boolean @default(true)
   createdAt DateTime @default(now())
 }
 
-// One-off overrides. Either blocks a day/window (school, sick day) or
-// opens a window that wouldn't normally be available (makeup job, holiday).
 model AvailabilityException {
   id        String   @id @default(cuid())
-  date      DateTime // calendar date (we ignore the time component)
-  isBlock   Boolean  // true = unavailable, false = extra open window
-  startTime String?  // optional partial-day window in "HH:MM"
+  date      DateTime
+  isBlock   Boolean
+  startTime String?
   endTime   String?
-  reason    String?  // free text e.g. "school field trip"
+  reason    String?
   createdAt DateTime @default(now())
 
   @@index([date])
@@ -121,11 +123,10 @@ enum MessageDirection {
   OUTBOUND
 }
 
-// Tap-to-send canned replies the son can manage from the admin.
 model QuickReply {
   id        String   @id @default(cuid())
-  label     String   // short button label, e.g. "On my way"
-  body      String   // full SMS text
+  label     String
+  body      String
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 }
