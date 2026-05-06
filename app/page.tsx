@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import BookingForm from "../components/BookingForm";
-import PhotoQuoteForm from "../components/PhotoQuoteForm";
+import QuoteForm from "../components/QuoteForm";
 import StickyMobileCTA from "../components/StickyMobileCTA";
 import FAQ from "../components/FAQ";
 import SiteHeader from "../components/SiteHeader";
@@ -367,8 +366,7 @@ export default function Home() {
           </p>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
-            <a href="#photo" style={ctaPrimary}>Send Photos for Quote</a>
-            <a href="#book" style={ctaSecondary}>Book a Time</a>
+            <a href="#photo" style={ctaPrimary}>Request a Quote</a>
           </div>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxWidth: 720 }}>
@@ -419,18 +417,18 @@ export default function Home() {
         />
       </section>
 
-      {/* PHOTO QUOTE */}
+      {/* QUOTE REQUEST */}
       <section id="photo" style={{ padding: "72px 0", background: surface }}>
         <div style={containerStyle}>
           <div style={{ maxWidth: 720, margin: "0 auto 36px", textAlign: "center" }}>
-            <h2 style={{ ...sectionTitleStyle, textAlign: "center" }}>Send photos. Get a quote.</h2>
+            <h2 style={{ ...sectionTitleStyle, textAlign: "center" }}>Request a quote</h2>
             <p style={{ ...sectionSubStyle, textAlign: "center", marginBottom: 0 }}>
-              Snap a few pics of your driveway, patio, siding, fence, sidewalks, mailbox, trash cans, or boat dock.
-              We&apos;ll text a price back within the hour.
+              Tell us a little about the job. Photos help us quote faster but aren&apos;t required.
+              We&apos;ll get back to you with a price as soon as we can.
             </p>
           </div>
           <div style={{ ...cardStyle, maxWidth: 580, margin: "0 auto", padding: 24 }}>
-            <PhotoQuoteForm />
+            <QuoteForm />
           </div>
         </div>
       </section>
@@ -543,21 +541,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* BOOKING */}
-      <section id="book" style={{ padding: "72px 0", background: "white" }}>
-        <div style={containerStyle}>
-          <div style={{ maxWidth: 720, margin: "0 auto 36px", textAlign: "center" }}>
-            <h2 style={{ ...sectionTitleStyle, textAlign: "center" }}>Or book a time directly</h2>
-            <p style={{ ...sectionSubStyle, textAlign: "center", marginBottom: 0 }}>
-              Pick an open slot. We&apos;ll text to confirm.
-            </p>
-          </div>
-          <div style={{ ...cardStyle, maxWidth: 580, margin: "0 auto", padding: 24 }}>
-            <BookingForm />
-          </div>
-        </div>
-      </section>
-
       {/* FINAL CTA */}
       <section
         style={{
@@ -591,8 +574,7 @@ export default function Home() {
             Send a few photos and we&apos;ll text you back fast. Or pick a slot now.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginBottom: 18 }}>
-            <a href="#photo" style={ctaPrimary}>Send Photos for Quote</a>
-            <a href="#book" style={ctaSecondary}>Book Now</a>
+            <a href="#photo" style={ctaPrimary}>Request a Quote</a>
           </div>
           <a
             href={"tel:" + phoneRaw}

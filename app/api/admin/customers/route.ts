@@ -2,7 +2,8 @@
 //
 // Returns customers ordered by their most recent booking (descending), with
 // a summary of: total bookings, last booking date, last service, total spent.
-// This is what the admin Inbox/customers list renders.
+// Includes the customer's lifecycle status (LEAD/PENDING/BOOKED/LOST) for
+// inbox color coding.
 
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -18,7 +19,6 @@ export async function GET() {
   }
 
   try {
-    // We pull customers and their bookings in one go, then summarize in JS.
     const customers = await prisma.customer.findMany({
       include: {
         bookings: {
@@ -30,6 +30,15 @@ export async function GET() {
             service: true,
             status: true,
             priceCents: true,
+          },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            createdAt: true,
+            service: true,
+            body: true,
           },
         },
       },
@@ -47,16 +56,22 @@ export async function GET() {
             b.status !== "COMPLETED" &&
             b.startsAt.getTime() > Date.now()
         );
+        const lastMessage = c.messages[0] ?? null;
         return {
           id: c.id,
           name: c.name,
           phone: c.phone,
           address: c.address,
+          status: c.status, // LEAD | PENDING | BOOKED | LOST
           createdAt: c.createdAt.toISOString(),
           bookingCount: c.bookings.length,
           totalCents,
           latestBookingAt: latest?.startsAt.toISOString() ?? null,
           latestService: latest?.service ?? null,
+          // For lead-only customers (no bookings yet), show their last message
+          // service / timestamp so the inbox row has something to display
+          lastMessageAt: lastMessage?.createdAt.toISOString() ?? null,
+          lastMessageService: lastMessage?.service ?? null,
           upcoming: upcoming
             ? {
                 id: upcoming.id,
@@ -66,12 +81,18 @@ export async function GET() {
             : null,
         };
       })
-      // Sort: customers with upcoming bookings first, then by latest booking time
       .sort((a, b) => {
+        // Upcoming bookings first, then by latest activity (booking or message)
         if (a.upcoming && !b.upcoming) return -1;
         if (!a.upcoming && b.upcoming) return 1;
-        const aT = a.latestBookingAt ? Date.parse(a.latestBookingAt) : 0;
-        const bT = b.latestBookingAt ? Date.parse(b.latestBookingAt) : 0;
+        const aT = Math.max(
+          a.latestBookingAt ? Date.parse(a.latestBookingAt) : 0,
+          a.lastMessageAt ? Date.parse(a.lastMessageAt) : 0
+        );
+        const bT = Math.max(
+          b.latestBookingAt ? Date.parse(b.latestBookingAt) : 0,
+          b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0
+        );
         return bT - aT;
       });
 

@@ -1,8 +1,8 @@
 // Admin customer detail endpoint.
 //
-// Returns one customer with all their bookings (newest first) so the
-// detail page can show full history + the next upcoming job + quick-reply
-// context (first name, next booking date, etc).
+// Returns one customer with status, all bookings (newest first), and all
+// inbound/outbound messages (newest first). Photos for lead messages are
+// included as URL arrays parsed from the comma-separated photoUrls column.
 
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -31,6 +31,9 @@ export async function GET(_req: Request, ctx: Ctx) {
         bookings: {
           orderBy: { startsAt: "desc" },
         },
+        messages: {
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
@@ -44,6 +47,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       phone: customer.phone,
       address: customer.address,
       notes: customer.notes,
+      status: customer.status,
       createdAt: customer.createdAt.toISOString(),
       bookings: customer.bookings.map((b) => ({
         id: b.id,
@@ -54,6 +58,15 @@ export async function GET(_req: Request, ctx: Ctx) {
         paymentStatus: b.paymentStatus,
         priceCents: b.priceCents,
         notes: b.notes,
+      })),
+      messages: customer.messages.map((m) => ({
+        id: m.id,
+        direction: m.direction,
+        body: m.body,
+        service: m.service,
+        photoUrls: m.photoUrls ? m.photoUrls.split(",").filter(Boolean) : [],
+        createdAt: m.createdAt.toISOString(),
+        read: m.read,
       })),
     });
   } catch (err) {

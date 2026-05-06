@@ -1,15 +1,18 @@
 "use client";
 
-// Phase 3 customer detail page.
+// Customer detail page.
 //
-// Shows everything about one customer:
-//   - Name, phone (tap to call), address (tap to open in Maps)
-//   - Quick-reply buttons that open iOS Messages with body prefilled
-//   - All bookings (newest first), color-coded by status
+// Adds on top of the existing detail view:
+//   - Customer status pill (LEAD/PENDING/BOOKED/LOST)
+//   - Action buttons: Book Job (green) / Job Pending (yellow) / Job Lost (red)
+//   - Follow Up button when status=PENDING (opens iOS Messages with prefilled
+//     follow-up text)
+//   - Lead messages section showing the customer's quote-request body +
+//     attached photos (clickable to open full size)
 //
-// Quick-reply buttons use sms: deeplinks. iOS handles the protocol; the
-// user just hits send. We substitute placeholders ({first}, {date}, etc.)
-// from the customer + their next booking.
+// The status changes are PATCH requests to /api/admin/customers/[id]/status.
+// On success, we update local state so the UI reflects the new state without
+// a full reload.
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -17,6 +20,8 @@ import { use } from "react";
 import { QUICK_REPLIES, fillTemplate, smsDeeplink } from "../../../../../lib/quickReplies";
 
 export const dynamic = "force-dynamic";
+
+type Status = "LEAD" | "PENDING" | "BOOKED" | "LOST";
 
 type Booking = {
   id: string;
@@ -29,14 +34,26 @@ type Booking = {
   notes: string | null;
 };
 
+type Message = {
+  id: string;
+  direction: "INBOUND" | "OUTBOUND";
+  body: string;
+  service: string | null;
+  photoUrls: string[];
+  createdAt: string;
+  read: boolean;
+};
+
 type Customer = {
   id: string;
   name: string | null;
   phone: string;
   address: string | null;
   notes: string | null;
+  status: Status;
   createdAt: string;
   bookings: Booking[];
+  messages: Message[];
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -48,13 +65,21 @@ const SERVICE_LABELS: Record<string, string> = {
   trashcans: "Trash Cans",
   fence: "Fence",
   boatdock: "Boat Dock",
+  other: "Other",
 };
 
-const STATUS_COLOR: Record<string, { bg: string; fg: string; border: string }> = {
+const BOOKING_STATUS_COLOR: Record<string, { bg: string; fg: string; border: string }> = {
   PENDING: { bg: "#fef3c7", fg: "#92400e", border: "#fde68a" },
   CONFIRMED: { bg: "#dbeafe", fg: "#1e40af", border: "#bfdbfe" },
   COMPLETED: { bg: "#dcfce7", fg: "#166534", border: "#bbf7d0" },
   CANCELED: { bg: "#fee2e2", fg: "#991b1b", border: "#fecaca" },
+};
+
+const STATUS_PILL: Record<Status, { bg: string; fg: string; label: string }> = {
+  LEAD: { bg: "#f1f5f9", fg: "#475569", label: "NEW LEAD" },
+  PENDING: { bg: "#facc15", fg: "#713f12", label: "PENDING" },
+  BOOKED: { bg: "#22c55e", fg: "#fff", label: "BOOKED" },
+  LOST: { bg: "#ef4444", fg: "#fff", label: "LOST" },
 };
 
 function formatPhone(p: string): string {
@@ -81,6 +106,18 @@ function formatBookingTime(iso: string): string {
   }).format(new Date(iso));
 }
 
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+}
+
 function firstName(full: string | null): string {
   if (!full) return "there";
   const trimmed = full.trim();
@@ -96,6 +133,8 @@ export default function CustomerDetailPage({
   const { id } = use(params);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +152,30 @@ export default function CustomerDetailPage({
       cancelled = true;
     };
   }, [id]);
+
+  async function setStatus(newStatus: Status) {
+    if (!customer) return;
+    if (statusBusy) return;
+    setStatusBusy(true);
+    setStatusError(null);
+    try {
+      const res = await fetch("/api/admin/customers/" + customer.id + "/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "HTTP " + res.status);
+      }
+      // Update local state so UI reflects without a reload
+      setCustomer({ ...customer, status: newStatus });
+    } catch (e) {
+      setStatusError(e instanceof Error ? e.message : "Failed to update");
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   if (error) {
     return (
@@ -147,8 +210,6 @@ export default function CustomerDetailPage({
     );
   }
 
-  // Pick the most relevant booking for placeholder substitution: the next
-  // upcoming one, or the most recent past one if none upcoming.
   const upcoming = customer.bookings.find(
     (b) =>
       b.status !== "CANCELED" &&
@@ -156,17 +217,32 @@ export default function CustomerDetailPage({
       new Date(b.startsAt).getTime() > Date.now()
   );
   const referenceBooking = upcoming ?? customer.bookings[0] ?? null;
-
   const placeholderVars = {
     first: firstName(customer.name),
     name: customer.name,
     date: referenceBooking ? formatBookingDate(referenceBooking.startsAt) : null,
     time: referenceBooking ? formatBookingTime(referenceBooking.startsAt) : null,
   };
-
   const mapsHref = customer.address
     ? "https://maps.google.com/?q=" + encodeURIComponent(customer.address)
     : null;
+
+  // Most recent inbound message — what the customer last sent us (e.g. their
+  // quote request). Used for follow-up text + showing photos at the top.
+  const latestInbound = customer.messages.find((m) => m.direction === "INBOUND") ?? null;
+  const leadServiceLabel = latestInbound?.service
+    ? SERVICE_LABELS[latestInbound.service] ?? latestInbound.service
+    : null;
+
+  // Build the follow-up text body for PENDING customers
+  const followUpBody =
+    "Hi " + firstName(customer.name) +
+    ", just following up on the quote we sent over" +
+    (leadServiceLabel ? " for your " + leadServiceLabel.toLowerCase() : "") +
+    ". Let me know if you'd like to move forward — happy to answer any questions. — Bay Area Wash Bros.";
+  const followUpHref = "sms:" + customer.phone + "?body=" + encodeURIComponent(followUpBody);
+
+  const statusPill = STATUS_PILL[customer.status];
 
   return (
     <div style={{ padding: 16, paddingBottom: 96 }}>
@@ -183,7 +259,7 @@ export default function CustomerDetailPage({
         ‹ Back to Inbox
       </Link>
 
-      {/* Identity card */}
+      {/* Identity card with status pill */}
       <div
         style={{
           background: "white",
@@ -193,6 +269,22 @@ export default function CustomerDetailPage({
           marginBottom: 14,
         }}
       >
+        <div style={{ marginBottom: 8 }}>
+          <span
+            style={{
+              display: "inline-block",
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: 0.8,
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: statusPill.bg,
+              color: statusPill.fg,
+            }}
+          >
+            {statusPill.label}
+          </span>
+        </div>
         <h1 style={{ fontSize: 22, fontWeight: 900, margin: "0 0 4px", color: "#0F172A" }}>
           {customer.name ?? "(no name)"}
         </h1>
@@ -225,7 +317,143 @@ export default function CustomerDetailPage({
         ) : null}
       </div>
 
-      {/* Quick-action buttons */}
+      {/* Status action buttons */}
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: 1.2,
+          textTransform: "uppercase",
+          color: "#64748b",
+          marginBottom: 8,
+        }}
+      >
+        Update status
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 6,
+          marginBottom: 10,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setStatus("BOOKED")}
+          disabled={statusBusy || customer.status === "BOOKED"}
+          style={{
+            background: customer.status === "BOOKED" ? "#16a34a" : "white",
+            color: customer.status === "BOOKED" ? "white" : "#16a34a",
+            border: "1.5px solid #16a34a",
+            padding: "10px 4px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 13,
+            cursor: statusBusy ? "default" : "pointer",
+            opacity: statusBusy && customer.status !== "BOOKED" ? 0.5 : 1,
+          }}
+        >
+          ✓ Book Job
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatus("PENDING")}
+          disabled={statusBusy || customer.status === "PENDING"}
+          style={{
+            background: customer.status === "PENDING" ? "#eab308" : "white",
+            color: customer.status === "PENDING" ? "white" : "#a16207",
+            border: "1.5px solid #eab308",
+            padding: "10px 4px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 13,
+            cursor: statusBusy ? "default" : "pointer",
+            opacity: statusBusy && customer.status !== "PENDING" ? 0.5 : 1,
+          }}
+        >
+          ⏳ Pending
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatus("LOST")}
+          disabled={statusBusy || customer.status === "LOST"}
+          style={{
+            background: customer.status === "LOST" ? "#dc2626" : "white",
+            color: customer.status === "LOST" ? "white" : "#b91c1c",
+            border: "1.5px solid #dc2626",
+            padding: "10px 4px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 13,
+            cursor: statusBusy ? "default" : "pointer",
+            opacity: statusBusy && customer.status !== "LOST" ? 0.5 : 1,
+          }}
+        >
+          ✗ Lost
+        </button>
+      </div>
+
+      {/* Reset to LEAD if previously marked Lost (lets them come back) */}
+      {customer.status === "LOST" || customer.status === "BOOKED" || customer.status === "PENDING" ? (
+        <button
+          type="button"
+          onClick={() => setStatus("LEAD")}
+          disabled={statusBusy}
+          style={{
+            background: "transparent",
+            color: "#64748b",
+            border: "none",
+            padding: "4px 0",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: statusBusy ? "default" : "pointer",
+            textDecoration: "underline",
+            marginBottom: 12,
+          }}
+        >
+          Reset to new lead
+        </button>
+      ) : null}
+
+      {statusError ? (
+        <div
+          style={{
+            background: "#fee2e2",
+            border: "1px solid #fecaca",
+            color: "#b91c1c",
+            padding: 8,
+            borderRadius: 8,
+            fontSize: 12,
+            marginBottom: 12,
+          }}
+        >
+          {statusError}
+        </div>
+      ) : null}
+
+      {/* Follow-up button — only for PENDING status */}
+      {customer.status === "PENDING" ? (
+        <a
+          href={followUpHref}
+          style={{
+            display: "block",
+            background: "#0EA5E9",
+            color: "white",
+            textAlign: "center",
+            padding: "12px 16px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 14,
+            textDecoration: "none",
+            marginBottom: 14,
+          }}
+        >
+          💬 Send Follow-Up Text
+        </a>
+      ) : null}
+
+      {/* Quick-action buttons (call / text) */}
       <div
         style={{
           display: "grid",
@@ -268,6 +496,101 @@ export default function CustomerDetailPage({
           💬 Text
         </a>
       </div>
+
+      {/* Lead message section — show their last quote request + photos */}
+      {latestInbound ? (
+        <>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.2,
+              textTransform: "uppercase",
+              color: "#64748b",
+              marginBottom: 8,
+            }}
+          >
+            Quote request
+          </div>
+          <div
+            style={{
+              background: "white",
+              border: "1px solid #e2e8f0",
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 18,
+            }}
+          >
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>
+              {formatTimestamp(latestInbound.createdAt)}
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                color: "#0F172A",
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.5,
+              }}
+            >
+              {latestInbound.body}
+            </div>
+            {latestInbound.photoUrls.length > 0 ? (
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+                  gap: 6,
+                }}
+              >
+                {latestInbound.photoUrls.map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      border: "1px solid #e2e8f0",
+                      aspectRatio: "1",
+                      background: "#f1f5f9",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={"Photo " + (i + 1)}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = "none";
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.style.display = "flex";
+                          parent.style.alignItems = "center";
+                          parent.style.justifyContent = "center";
+                          parent.style.color = "#94a3b8";
+                          parent.style.fontSize = "11px";
+                          parent.style.padding = "8px";
+                          parent.style.textAlign = "center";
+                          parent.textContent = "Photo unavailable (server restart)";
+                        }
+                      }}
+                    />
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : null}
 
       {/* Quick replies */}
       <div
@@ -344,7 +667,7 @@ export default function CustomerDetailPage({
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {customer.bookings.map((b) => {
-            const colors = STATUS_COLOR[b.status] ?? STATUS_COLOR.PENDING;
+            const colors = BOOKING_STATUS_COLOR[b.status] ?? BOOKING_STATUS_COLOR.PENDING;
             return (
               <div
                 key={b.id}
@@ -397,8 +720,7 @@ export default function CustomerDetailPage({
                   }}
                 >
                   <span>
-                    Payment:{" "}
-                    <strong style={{ color: "#0F172A" }}>{b.paymentStatus}</strong>
+                    Payment: <strong style={{ color: "#0F172A" }}>{b.paymentStatus}</strong>
                   </span>
                   <span style={{ fontWeight: 800, color: "#0F172A" }}>
                     ${(b.priceCents / 100).toFixed(0)}

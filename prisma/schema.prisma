@@ -1,5 +1,5 @@
 // Bay Area Wash Bros — data model
-// Postgres on Railway. One schema covers all phases (auth, scheduling, SMS, bookings).
+// Postgres on Railway. One schema covers all phases (auth, scheduling, SMS, bookings, leads).
 
 generator client {
   provider = "prisma-client-js"
@@ -23,17 +23,32 @@ model User {
 // ---------- People & jobs ----------
 
 model Customer {
-  id        String    @id @default(cuid())
+  id        String         @id @default(cuid())
   // E.164 format, e.g. "+18328819960"
-  phone     String    @unique
+  phone     String         @unique
   name      String?
   address   String?
   notes     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  // Lead lifecycle status — set by admin from the customer detail page.
+  // LEAD = new quote request, no decision yet (white in inbox)
+  // PENDING = quote sent, waiting on customer (yellow)
+  // BOOKED = job confirmed (green)
+  // LOST = customer declined or didn't convert (red)
+  status    CustomerStatus @default(LEAD)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
   bookings  Booking[]
   messages  Message[]
+
+  @@index([status])
+}
+
+enum CustomerStatus {
+  LEAD
+  PENDING
+  BOOKED
+  LOST
 }
 
 model Booking {
@@ -48,10 +63,10 @@ model Booking {
   status          BookingStatus  @default(PENDING)
   paymentStatus   PaymentStatus  @default(UNPAID)
 
-  // Payment tracking — populated when marked paid
-  paymentMethod   String?        // "CASH" | "VENMO" | "ZELLE" | "CHECK" | "OTHER"
-  paymentNote     String?        // free-text, e.g. "his uncle paid", check #1234
-  paidAt          DateTime?      // when the payment was recorded
+  // Payment tracking
+  paymentMethod   String?
+  paymentNote     String?
+  paidAt          DateTime?
 
   stripeSessionId String?
   googleEventId   String?
@@ -102,17 +117,22 @@ model AvailabilityException {
   @@index([date])
 }
 
-// ---------- SMS ----------
+// ---------- SMS / Lead messages ----------
 
 model Message {
-  id         String           @id @default(cuid())
-  customerId String
-  customer   Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  direction  MessageDirection
-  body       String
-  twilioSid  String?
-  read       Boolean          @default(false)
-  createdAt  DateTime         @default(now())
+  id          String           @id @default(cuid())
+  customerId  String
+  customer    Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  direction   MessageDirection
+  body        String
+  // For lead messages, this is a comma-separated list of photo URLs
+  // (Twilio-fetchable URLs from /api/photo-quote/media/...)
+  photoUrls   String?
+  // The service the customer selected on the form, if any
+  service     String?
+  twilioSid   String?
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now())
 
   @@index([customerId, createdAt])
   @@index([read])
