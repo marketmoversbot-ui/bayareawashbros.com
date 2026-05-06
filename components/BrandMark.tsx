@@ -18,10 +18,10 @@ export default function BrandMark({ size = 40 }: Props) {
       style={{ display: "block" }}
     >
       <circle cx="50" cy="50" r="48" fill="#0EA5E9" />
-      {/* Water droplet: rounded teardrop, yellow */}
+      {/* Water droplet: rounded teardrop, white */}
       <path
         d="M50 18 L66 56 A18 18 0 1 1 34 56 Z"
-        fill="#FACC15"
+        fill="#FFFFFF"
       />
     </svg>
   );

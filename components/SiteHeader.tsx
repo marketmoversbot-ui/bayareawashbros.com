@@ -2,9 +2,10 @@
 
 import BrandMark from "./BrandMark";
 
-// Public site header. Sticky, white, with logo + name on the left and a
-// "Send photos for a quote" button on the right. The button is hidden
-// on small screens to save room — the sticky bottom-bar CTA covers it.
+// Public site header. "Bay Area Wash Bros." rendered in Anton — tall,
+// heavy display caps. Anton works as caps-only (it has no real lowercase
+// distinction at this weight), so we use the natural mixed case the user
+// sees but Anton's high contrast makes it read as a strong wordmark.
 
 export default function SiteHeader() {
   return (
@@ -44,26 +45,29 @@ export default function SiteHeader() {
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: "clamp(20px, 4.2vw, 26px)",
-                fontWeight: 900,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.05,
+                fontFamily: "Anton, system-ui, -apple-system, sans-serif",
+                fontSize: "clamp(26px, 5vw, 34px)",
+                fontWeight: 400,
+                letterSpacing: "0.005em",
+                lineHeight: 1,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
+                textTransform: "uppercase",
               }}
             >
               Bay Area Wash Bros.
             </div>
             <div
               style={{
+                fontFamily: "system-ui, sans-serif",
                 fontSize: 12,
                 fontWeight: 700,
                 color: "#0EA5E9",
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
                 lineHeight: 1.1,
-                marginTop: 3,
+                marginTop: 6,
               }}
             >
               League City, TX

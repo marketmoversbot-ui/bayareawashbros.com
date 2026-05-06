@@ -1,32 +1,22 @@
 "use client";
 
 // 5-day weather forecast strip for League City, TX.
+// YELLOW background variant.
 //
-// Shows at the top of every page (where the BetaBanner used to live).
-// Helps customers see if rain is in the forecast before booking, and
-// gives the owner a quick at-a-glance view of the work week.
-//
-// Data source: Open-Meteo (free, no API key required).
-// https://open-meteo.com/en/docs
-//
-// Behavior:
-//   - Fetches once on mount, holds in component state
-//   - Loading: invisible (no flash of skeleton)
-//   - Error: silently hides (never blocks page render)
-//   - Success: 5 horizontally-scrollable day cards
+// Data: Open-Meteo (free, no API key)
+// Behavior: silent fail — strip simply hides if API fails
 
 import { useEffect, useState } from "react";
 
-// League City, TX. Hardcoded — this is a single-location business.
 const LAT = 29.5075;
 const LON = -95.0949;
 
 type DailyForecast = {
-  date: string;        // "2026-05-05" (Chicago tz)
-  hi: number;          // °F
-  lo: number;          // °F
-  rainPct: number;     // 0-100
-  weatherCode: number; // WMO code
+  date: string;
+  hi: number;
+  lo: number;
+  rainPct: number;
+  weatherCode: number;
 };
 
 type ApiResponse = {
@@ -39,8 +29,6 @@ type ApiResponse = {
   };
 };
 
-// WMO weather code -> emoji + short label.
-// https://open-meteo.com/en/docs#weathervariables
 function describeWeather(code: number): { icon: string; label: string } {
   if (code === 0) return { icon: "☀️", label: "Clear" };
   if (code === 1) return { icon: "🌤️", label: "Mostly sunny" };
@@ -82,7 +70,6 @@ export default function WeatherStrip() {
 
   useEffect(() => {
     let cancelled = false;
-
     const url =
       "https://api.open-meteo.com/v1/forecast" +
       "?latitude=" + LAT +
@@ -103,7 +90,6 @@ export default function WeatherStrip() {
         const lo = data.daily?.temperature_2m_min ?? [];
         const code = data.daily?.weather_code ?? [];
         const rain = data.daily?.precipitation_probability_max ?? [];
-
         if (time.length === 0) throw new Error("No forecast data");
 
         const out: DailyForecast[] = time.map((t, i) => ({
@@ -113,7 +99,6 @@ export default function WeatherStrip() {
           rainPct: Math.round(rain[i] ?? 0),
           weatherCode: code[i] ?? 0,
         }));
-
         if (!cancelled) setDays(out);
       } catch {
         if (!cancelled) setErrored(true);
@@ -132,9 +117,9 @@ export default function WeatherStrip() {
   return (
     <div
       style={{
-        background: "#0C4A6E",
-        color: "white",
-        borderBottom: "1px solid #082F49",
+        background: "#FACC15",
+        color: "#0F172A",
+        borderBottom: "1px solid #EAB308",
       }}
     >
       <div
@@ -152,10 +137,10 @@ export default function WeatherStrip() {
         <div
           style={{
             fontSize: 11,
-            fontWeight: 700,
+            fontWeight: 800,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
-            color: "#FACC15",
+            color: "#0C4A6E",
             whiteSpace: "nowrap",
             flexShrink: 0,
             paddingRight: 6,
@@ -167,6 +152,7 @@ export default function WeatherStrip() {
         {days.map((d) => {
           const w = describeWeather(d.weatherCode);
           const label = formatDayLabel(d.date, today);
+          const isToday = label === "Today";
           return (
             <div
               key={d.date}
@@ -176,18 +162,19 @@ export default function WeatherStrip() {
                 alignItems: "center",
                 gap: 6,
                 padding: "4px 10px",
-                background: label === "Today" ? "rgba(250,204,21,0.15)" : "rgba(255,255,255,0.06)",
-                border: "1px solid " + (label === "Today" ? "rgba(250,204,21,0.4)" : "rgba(255,255,255,0.1)"),
+                background: isToday ? "rgba(12,74,110,0.92)" : "rgba(255,255,255,0.55)",
+                border: "1px solid " + (isToday ? "#0C4A6E" : "rgba(12,74,110,0.18)"),
                 borderRadius: 8,
                 fontSize: 12,
                 whiteSpace: "nowrap",
                 flexShrink: 0,
+                color: isToday ? "white" : "#0F172A",
               }}
             >
               <span
                 style={{
-                  fontWeight: 700,
-                  color: label === "Today" ? "#FACC15" : "rgba(255,255,255,0.85)",
+                  fontWeight: 800,
+                  color: isToday ? "#FACC15" : "#0C4A6E",
                   minWidth: 32,
                 }}
               >
@@ -196,16 +183,16 @@ export default function WeatherStrip() {
               <span style={{ fontSize: 14, lineHeight: 1 }} aria-hidden>
                 {w.icon}
               </span>
-              <span style={{ fontWeight: 700, color: "white" }}>
+              <span style={{ fontWeight: 800 }}>
                 {d.hi}°
               </span>
-              <span style={{ color: "rgba(255,255,255,0.55)" }}>/{d.lo}°</span>
+              <span style={{ opacity: 0.65 }}>/{d.lo}°</span>
               {d.rainPct >= 20 ? (
                 <span
                   style={{
                     fontSize: 11,
-                    color: d.rainPct >= 50 ? "#fca5a5" : "#fde68a",
-                    fontWeight: 600,
+                    color: d.rainPct >= 50 ? "#b91c1c" : "#a16207",
+                    fontWeight: 700,
                   }}
                 >
                   💧{d.rainPct}%

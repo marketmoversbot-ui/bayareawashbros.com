@@ -3,12 +3,12 @@ import BookingForm from "../components/BookingForm";
 import PhotoQuoteForm from "../components/PhotoQuoteForm";
 import StickyMobileCTA from "../components/StickyMobileCTA";
 import SiteHeader from "../components/SiteHeader";
+import AnimatedHeadline from "../components/AnimatedHeadline";
 import { SERVICES } from "../lib/services";
 
 const phone = "832-881-9960";
 const phoneRaw = "18328819960";
 
-// ---- Style tokens ----
 const sky = "#0EA5E9";
 const skyDark = "#0C4A6E";
 const skyDeep = "#082F49";
@@ -81,7 +81,6 @@ const ctaSecondary: CSSProperties = {
   letterSpacing: "-0.01em",
 };
 
-// ---- Service illustrations + tints ----
 type Display = { tint: string; illustration: ReactNode };
 
 const display: Record<string, Display> = {
@@ -280,6 +279,16 @@ const whyUs = [
   },
 ];
 
+const heroH1Style: CSSProperties = {
+  fontSize: "clamp(40px, 7.2vw, 68px)",
+  lineHeight: 1.02,
+  fontWeight: 900,
+  letterSpacing: "-0.025em",
+  margin: "0 0 18px",
+  maxWidth: 820,
+  color: "white",
+};
+
 export default function Home() {
   return (
     <main
@@ -331,19 +340,10 @@ export default function Home() {
             <span aria-hidden>★</span> Pressure washing · League City
           </div>
 
-          <h1
-            style={{
-              fontSize: "clamp(40px, 7.2vw, 68px)",
-              lineHeight: 1.02,
-              fontWeight: 900,
-              letterSpacing: "-0.025em",
-              margin: "0 0 18px",
-              maxWidth: 820,
-            }}
-          >
+          <AnimatedHeadline style={heroH1Style}>
             Make Your Home Look Brand New —{" "}
             <span style={{ color: accent }}>This Weekend.</span>
-          </h1>
+          </AnimatedHeadline>
 
           <p
             style={{
@@ -578,7 +578,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FOOTER — centered */}
+      {/* FOOTER */}
       <footer style={{ background: ink, color: "white", padding: "44px 0 36px", textAlign: "center" }}>
         <div style={containerStyle}>
           <p style={{ fontSize: 18, fontWeight: 800, margin: "0 0 6px", color: accent }}>
