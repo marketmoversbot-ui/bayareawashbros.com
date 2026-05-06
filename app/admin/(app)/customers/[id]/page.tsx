@@ -295,7 +295,13 @@ export default function CustomerDetailPage({
 
   // Most recent inbound message — what the customer last sent us (e.g. their
   // quote request). Used for follow-up text + showing photos at the top.
-  const latestInbound = customer.messages.find((m) => m.direction === "INBOUND") ?? null;
+  // All inbound messages (the customer's quote requests), newest first.
+  // We display each as its own card so multiple submissions from the same
+  // customer don't overwrite each other in the UI.
+  const inboundMessages = customer.messages.filter((m) => m.direction === "INBOUND");
+  // The most recent one is used for follow-up text personalization (referencing
+  // the most recent service the customer asked about).
+  const latestInbound = inboundMessages[0] ?? null;
   const leadServiceLabel = latestInbound?.service
     ? SERVICE_LABELS[latestInbound.service] ?? latestInbound.service
     : null;
@@ -563,8 +569,9 @@ export default function CustomerDetailPage({
         </a>
       </div>
 
-      {/* Lead message section — show their last quote request + photos */}
-      {latestInbound ? (
+      {/* Quote request history — newest first. One card per inbound message
+          so repeat customers don't have older requests hidden. */}
+      {inboundMessages.length > 0 ? (
         <>
           <div
             style={{
@@ -576,84 +583,88 @@ export default function CustomerDetailPage({
               marginBottom: 8,
             }}
           >
-            Quote request
+            Quote requests ({inboundMessages.length})
           </div>
-          <div
-            style={{
-              background: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 18,
-            }}
-          >
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>
-              {formatTimestamp(latestInbound.createdAt)}
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                color: "#0F172A",
-                whiteSpace: "pre-wrap",
-                lineHeight: 1.5,
-              }}
-            >
-              {latestInbound.body}
-            </div>
-            {latestInbound.photoUrls.length > 0 ? (
+          <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+            {inboundMessages.map((msg) => (
               <div
+                key={msg.id}
                 style={{
-                  marginTop: 10,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
-                  gap: 6,
+                  background: "white",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
+                  padding: 12,
                 }}
               >
-                {latestInbound.photoUrls.map((url, i) => (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>
+                  {formatTimestamp(msg.createdAt)}
+                </div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: "#0F172A",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {msg.body}
+                </div>
+                {msg.photoUrls.length > 0 ? (
+                  <div
                     style={{
-                      display: "block",
-                      borderRadius: 8,
-                      overflow: "hidden",
-                      border: "1px solid #e2e8f0",
-                      aspectRatio: "1",
-                      background: "#f1f5f9",
+                      marginTop: 10,
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+                      gap: 6,
                     }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url}
-                      alt={"Photo " + (i + 1)}
-                      style={{
-                        display: "block",
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.style.display = "none";
-                        const parent = target.parentElement;
-                        if (parent) {
-                          parent.style.display = "flex";
-                          parent.style.alignItems = "center";
-                          parent.style.justifyContent = "center";
-                          parent.style.color = "#94a3b8";
-                          parent.style.fontSize = "11px";
-                          parent.style.padding = "8px";
-                          parent.style.textAlign = "center";
-                          parent.textContent = "Photo unavailable (server restart)";
-                        }
-                      }}
-                    />
-                  </a>
-                ))}
+                    {msg.photoUrls.map((url, i) => (
+                      <a
+                        key={i}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "block",
+                          borderRadius: 8,
+                          overflow: "hidden",
+                          border: "1px solid #e2e8f0",
+                          aspectRatio: "1",
+                          background: "#f1f5f9",
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={"Photo " + (i + 1)}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.style.display = "none";
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.style.display = "flex";
+                              parent.style.alignItems = "center";
+                              parent.style.justifyContent = "center";
+                              parent.style.color = "#94a3b8";
+                              parent.style.fontSize = "11px";
+                              parent.style.padding = "8px";
+                              parent.style.textAlign = "center";
+                              parent.textContent = "Photo unavailable (server restart)";
+                            }
+                          }}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            ))}
           </div>
         </>
       ) : null}
