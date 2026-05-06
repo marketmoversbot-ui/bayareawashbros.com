@@ -1,15 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Anton } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
 import WeatherStrip from "../components/WeatherStrip";
 
-// Anton — heavy condensed display sans for the brand name.
-// Loaded via next/font so it's self-hosted and doesn't FOIT (flash of
-// invisible text) on slow connections.
-const anton = Anton({
-  weight: "400",
+// Manrope — soft, approachable modern sans. Used for the brand name in
+// the header. Weight 800 (ExtraBold) for confident presence without the
+// "shouting display caps" feel.
+const manrope = Manrope({
+  weight: ["800"],
   subsets: ["latin"],
-  variable: "--font-anton",
+  variable: "--font-manrope",
   display: "swap",
 });
 
@@ -36,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={anton.variable}>
+    <html lang="en" className={manrope.variable}>
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
