@@ -21,6 +21,7 @@
     "next-auth": "^4.24.10",
     "react": "latest",
     "react-dom": "latest",
+    "resend": "^4.0.0",
     "twilio": "^5.3.7"
   },
   "devDependencies": {

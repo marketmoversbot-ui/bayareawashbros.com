@@ -5,29 +5,31 @@ import * as crypto from "node:crypto";
 import * as os from "node:os";
 import { prisma } from "../../../lib/db";
 
-// Quote-request intake (was photo-quote, now handles the full lead flow).
+// Quote-request intake.
 //
 // Behavior:
 //   1. Parses multipart form data: name, phone, address, service, notes, photos[]
-//   2. Validates name + phone (required); photos are now OPTIONAL
-//   3. Saves any uploaded photos to /tmp on the server with a session id,
-//      so Twilio can fetch them via /api/photo-quote/media/[id]/[file]
+//   2. Validates name + phone (required); photos are OPTIONAL
+//   3. Saves any uploaded photos to /tmp on the server with a session id
 //   4. Upserts the Customer (status=LEAD on new customer)
 //   5. Creates an INBOUND Message record with the lead body, photo URLs,
 //      and selected service — so the admin sees this lead in the inbox
-//   6. Sends MMS to admin's phone via Twilio (existing flow, unchanged)
+//   6. Sends MMS to admin's phone via Twilio (if configured)
+//   7. Sends backup email-to-SMS via Resend (if configured)
 //
-// IMPORTANT: photos saved to /tmp are NOT persistent across deploys. The
-// Twilio MMS goes through immediately so admin's phone has a permanent copy,
-// but the URLs stored on the Message will break after a Railway restart.
-// For now, accept this trade-off; persistent storage is future work.
+// The backup email-to-SMS path exists because Twilio A2P 10DLC registration
+// is required for US local numbers, which takes 24-72 hours to approve.
+// In the meantime, the email backup forwards lead info via the carrier's
+// email-to-SMS gateway (e.g., 8328819960@tmomail.net for T-Mobile).
 //
-// Required env vars (set in Railway):
+// Env vars (set in Railway):
 //   TWILIO_ACCOUNT_SID
 //   TWILIO_AUTH_TOKEN
 //   TWILIO_FROM_NUMBER
 //   TWILIO_TO_NUMBER (defaults to +18328819960)
-//   PUBLIC_BASE_URL (optional)
+//   PUBLIC_BASE_URL  (e.g. https://bayareawashbros.com)
+//   RESEND_API_KEY   (re_... from resend.com)
+//   NOTIFY_EMAIL     (e.g. 8328819960@tmomail.net for T-Mobile gateway)
 
 export const runtime = "nodejs";
 
@@ -120,7 +122,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Persist photos to /tmp under a unique session ID (only if any were uploaded)
+  // Persist photos to /tmp under a unique session ID
   let mediaUrls: string[] = [];
   if (files.length > 0) {
     const sessionId = crypto.randomBytes(8).toString("hex");
@@ -150,11 +152,8 @@ export async function POST(req: Request) {
     const customer = await prisma.customer.upsert({
       where: { phone: phoneE164 },
       update: {
-        // Update name/address if provided (last submission wins)
         name: name || undefined,
         address: address || undefined,
-        // DO NOT downgrade status. If they were already BOOKED, leave them BOOKED.
-        // Only initialize status when creating new.
       },
       create: {
         phone: phoneE164,
@@ -165,7 +164,6 @@ export async function POST(req: Request) {
     });
     customerId = customer.id;
 
-    // Build the message body that summarizes the lead
     const serviceLabel = service ? SERVICE_LABELS[service] ?? service : null;
     const bodyLines: string[] = [];
     if (serviceLabel) bodyLines.push("Service: " + serviceLabel);
@@ -192,11 +190,16 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[photo-quote] DB save failed:", err);
-    // Don't fail the request — the Twilio MMS still has the lead info.
-    // Admin will see it on their phone even if DB save failed.
   }
 
-  // Always log so submissions show up in Railway → Logs
+  // Build the notification text body — used for both Twilio MMS and email-to-SMS
+  const serviceLabel = service ? SERVICE_LABELS[service] ?? service : null;
+  const notifyLines = ["New quote request from " + name, "Phone: " + phone];
+  if (serviceLabel) notifyLines.push("Service: " + serviceLabel);
+  if (address) notifyLines.push("Address: " + address);
+  if (notes) notifyLines.push("Notes: " + notes);
+  const notifyBody = notifyLines.join("\n");
+
   console.log("[photo-quote] received:", {
     name,
     phone: phoneE164,
@@ -208,7 +211,7 @@ export async function POST(req: Request) {
     mediaUrls,
   });
 
-  // ---- Send MMS to admin (existing Twilio flow) ----
+  // ---- Path A: Send MMS to admin via Twilio ----
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_FROM_NUMBER;
@@ -220,36 +223,68 @@ export async function POST(req: Request) {
       const twilioModule = await import("twilio");
       const twilio = twilioModule.default ?? twilioModule;
       const client = twilio(sid, token);
-
-      const serviceLabel = service ? SERVICE_LABELS[service] ?? service : null;
-      const bodyLines = ["New quote request from " + name, "Phone: " + phone];
-      if (serviceLabel) bodyLines.push("Service: " + serviceLabel);
-      if (address) bodyLines.push("Address: " + address);
-      if (notes) bodyLines.push("Notes: " + notes);
-      const body = bodyLines.join("\n");
-
       const messageOpts: {
         from: string;
         to: string;
         body: string;
         mediaUrl?: string[];
-      } = { from, to, body };
-
+      } = { from, to, body: notifyBody };
       if (mediaUrls.length > 0) {
         messageOpts.mediaUrl = mediaUrls;
       }
-
       await client.messages.create(messageOpts);
       twilioStatus = "sent";
+      console.log("[photo-quote] Twilio MMS sent to", to);
     } catch (err) {
       console.error("[photo-quote] Twilio send failed:", err);
       twilioStatus = "error";
     }
   } else {
-    console.log(
-      "[photo-quote] Twilio env vars not set; MMS skipped. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER in Railway → Variables."
-    );
+    console.log("[photo-quote] Twilio env vars not set; MMS skipped.");
   }
 
-  return NextResponse.json({ ok: true, twilio: twilioStatus, customerId });
+  // ---- Path B: Send backup email-to-SMS via Resend ----
+  // This goes to the carrier email-to-SMS gateway (e.g. 8328819960@tmomail.net
+  // for T-Mobile). Carrier converts to plain SMS and delivers to the phone.
+  // Provides reliable backup while Twilio A2P 10DLC registration is pending.
+  const resendKey = process.env.RESEND_API_KEY;
+  const notifyEmail = process.env.NOTIFY_EMAIL;
+  let emailStatus: "sent" | "skipped" | "error" = "skipped";
+
+  if (resendKey && notifyEmail) {
+    try {
+      const resendModule = await import("resend");
+      const Resend = resendModule.Resend;
+      const resend = new Resend(resendKey);
+      // SMS gateways tend to strip subjects and HTML; plain text body is what
+      // actually shows up on the phone. Subject is usually shown as the sender
+      // header on the SMS, varies by carrier.
+      const result = await resend.emails.send({
+        from: "Wash Bros Lead <onboarding@resend.dev>",
+        to: notifyEmail,
+        subject: "New quote: " + name,
+        text: notifyBody,
+      });
+      // Resend returns { data, error } — check for either
+      if (result && "error" in result && result.error) {
+        console.error("[photo-quote] Resend send failed:", result.error);
+        emailStatus = "error";
+      } else {
+        emailStatus = "sent";
+        console.log("[photo-quote] Email-to-SMS sent to", notifyEmail);
+      }
+    } catch (err) {
+      console.error("[photo-quote] Resend exception:", err);
+      emailStatus = "error";
+    }
+  } else {
+    console.log("[photo-quote] Resend env vars not set; email skipped.");
+  }
+
+  return NextResponse.json({
+    ok: true,
+    twilio: twilioStatus,
+    email: emailStatus,
+    customerId,
+  });
 }
