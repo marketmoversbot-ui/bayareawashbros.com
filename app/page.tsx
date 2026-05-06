@@ -311,6 +311,14 @@ export default function Home() {
           <path d="M50 8 L78 60 A28 28 0 1 1 22 60 Z" fill={accent} />
         </svg>
 
+        {/* Mascot — desktop only, hidden on mobile via media query below */}
+        <img
+          src="/washbros-mascot.png"
+          alt=""
+          aria-hidden="true"
+          className="hero-mascot"
+        />
+
         <div style={containerStyle}>
           <div
             style={{
@@ -385,6 +393,30 @@ export default function Home() {
             ))}
           </div>
         </div>
+
+        {/* Mascot positioning + responsive hide on mobile.
+            900px breakpoint: below that, the hero text already takes full width,
+            so the mascot would overlap or look cramped. Hide him entirely. */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: [
+              ".hero-mascot {",
+              "  position: absolute;",
+              "  right: calc(3% + 90px);",
+              "  bottom: 0;",
+              "  height: 86%;",
+              "  max-height: 460px;",
+              "  width: auto;",
+              "  pointer-events: none;",
+              "  user-select: none;",
+              "  z-index: 1;",
+              "}",
+              "@media (max-width: 899px) {",
+              "  .hero-mascot { display: none; }",
+              "}",
+            ].join("\n"),
+          }}
+        />
       </section>
 
       {/* PHOTO QUOTE */}
