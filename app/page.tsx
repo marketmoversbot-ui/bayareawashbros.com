@@ -3,7 +3,6 @@ import BookingForm from "../components/BookingForm";
 import PhotoQuoteForm from "../components/PhotoQuoteForm";
 import StickyMobileCTA from "../components/StickyMobileCTA";
 import SiteHeader from "../components/SiteHeader";
-import AnimatedDirtyWord from "../components/AnimatedDirtyWord";
 import { SERVICES } from "../lib/services";
 
 const phone = "832-881-9960";
@@ -337,11 +336,11 @@ export default function Home() {
               marginBottom: 18,
             }}
           >
-            <span aria-hidden>★</span> Pressure washing · League City
+            <span aria-hidden>â˜…</span> Pressure washing Â· League City
           </div>
 
           <h1 style={heroH1Style}>
-            Make Your <AnimatedDirtyWord word="Home" /> Look Brand New —{" "}
+            Make Your Home Look Brand New â€”{" "}
             <span style={{ color: accent }}>This Weekend.</span>
           </h1>
 
@@ -379,7 +378,7 @@ export default function Home() {
                   fontWeight: 600,
                 }}
               >
-                <span aria-hidden style={{ color: accent }}>✓</span>{t}
+                <span aria-hidden style={{ color: accent }}>âœ“</span>{t}
               </span>
             ))}
           </div>
@@ -631,7 +630,7 @@ export default function Home() {
             </a>
           </div>
           <p style={{ marginTop: 32, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
-            © {new Date().getFullYear()} Bay Area Wash Bros. · League City, TX
+            Â© {new Date().getFullYear()} Bay Area Wash Bros. Â· League City, TX
           </p>
         </div>
       </footer>
