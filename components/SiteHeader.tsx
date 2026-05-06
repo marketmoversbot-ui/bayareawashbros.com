@@ -5,6 +5,9 @@ import BrandMark from "./BrandMark";
 // Public site header. Sticky, white, with logo + name on the left and a
 // "Send photos for a quote" button on the right. The button is hidden
 // on small screens to save room — the sticky bottom-bar CTA covers it.
+//
+// Brand sizing (May 2026): "Bay Area Wash Bros" reads loud — visitor
+// should never have to hunt for the company name.
 
 export default function SiteHeader() {
   return (
@@ -22,7 +25,7 @@ export default function SiteHeader() {
         style={{
           maxWidth: 1100,
           margin: "0 auto",
-          padding: "12px 20px",
+          padding: "14px 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -34,20 +37,20 @@ export default function SiteHeader() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 12,
+            gap: 14,
             textDecoration: "none",
             color: "#0F172A",
             minWidth: 0,
           }}
         >
-          <BrandMark size={42} />
+          <BrandMark size={52} />
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: 17,
+                fontSize: "clamp(20px, 4.2vw, 26px)",
                 fontWeight: 900,
-                letterSpacing: "-0.01em",
-                lineHeight: 1.1,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.05,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -57,13 +60,13 @@ export default function SiteHeader() {
             </div>
             <div
               style={{
-                fontSize: 11,
-                fontWeight: 600,
+                fontSize: 12,
+                fontWeight: 700,
                 color: "#0EA5E9",
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
                 lineHeight: 1.1,
-                marginTop: 2,
+                marginTop: 3,
               }}
             >
               League City, TX

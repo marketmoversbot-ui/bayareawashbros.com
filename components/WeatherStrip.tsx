@@ -1,6 +1,6 @@
 "use client";
 
-// 7-day weather forecast strip for League City, TX.
+// 5-day weather forecast strip for League City, TX.
 //
 // Shows at the top of every page (where the BetaBanner used to live).
 // Helps customers see if rain is in the forecast before booking, and
@@ -13,7 +13,7 @@
 //   - Fetches once on mount, holds in component state
 //   - Loading: invisible (no flash of skeleton)
 //   - Error: silently hides (never blocks page render)
-//   - Success: 7 horizontally-scrollable day cards
+//   - Success: 5 horizontally-scrollable day cards
 
 import { useEffect, useState } from "react";
 
@@ -56,11 +56,8 @@ function describeWeather(code: number): { icon: string; label: string } {
   return { icon: "🌤️", label: "" };
 }
 
-// Format a YYYY-MM-DD string as a 3-letter weekday ("Mon", "Tue").
-// Today shows as "Today".
 function formatDayLabel(ymd: string, todayYmd: string): string {
   if (ymd === todayYmd) return "Today";
-  // Parse the date as if at noon in UTC to avoid timezone shifts.
   const [y, m, d] = ymd.split("-").map((s) => parseInt(s, 10));
   const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   return dt.toLocaleDateString("en-US", {
@@ -70,7 +67,6 @@ function formatDayLabel(ymd: string, todayYmd: string): string {
 }
 
 function todayInChicago(): string {
-  // Get today's date as YYYY-MM-DD in America/Chicago.
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Chicago",
     year: "numeric",
@@ -94,7 +90,7 @@ export default function WeatherStrip() {
       "&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max" +
       "&temperature_unit=fahrenheit" +
       "&timezone=America%2FChicago" +
-      "&forecast_days=7";
+      "&forecast_days=5";
 
     (async () => {
       try {
@@ -129,8 +125,6 @@ export default function WeatherStrip() {
     };
   }, []);
 
-  // If the fetch failed or hasn't returned yet, render nothing.
-  // This is intentional — the strip should never block or empty-render.
   if (errored || !days) return null;
 
   const today = todayInChicago();
@@ -166,9 +160,9 @@ export default function WeatherStrip() {
             flexShrink: 0,
             paddingRight: 6,
           }}
-          aria-label="7-day forecast for League City, Texas"
+          aria-label="5-day forecast for League City, Texas"
         >
-          League City · 7-Day
+          League City · 5-Day
         </div>
         {days.map((d) => {
           const w = describeWeather(d.weatherCode);
