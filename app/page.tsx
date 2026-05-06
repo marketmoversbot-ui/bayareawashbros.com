@@ -3,7 +3,7 @@ import BookingForm from "../components/BookingForm";
 import PhotoQuoteForm from "../components/PhotoQuoteForm";
 import StickyMobileCTA from "../components/StickyMobileCTA";
 import SiteHeader from "../components/SiteHeader";
-import AnimatedHeadline from "../components/AnimatedHeadline";
+import AnimatedDirtyWord from "../components/AnimatedDirtyWord";
 import { SERVICES } from "../lib/services";
 
 const phone = "832-881-9960";
@@ -340,10 +340,10 @@ export default function Home() {
             <span aria-hidden>★</span> Pressure washing · League City
           </div>
 
-          <AnimatedHeadline style={heroH1Style}>
-            Make Your Home Look Brand New —{" "}
+          <h1 style={heroH1Style}>
+            Make Your <AnimatedDirtyWord word="Home" /> Look Brand New —{" "}
             <span style={{ color: accent }}>This Weekend.</span>
-          </AnimatedHeadline>
+          </h1>
 
           <p
             style={{
