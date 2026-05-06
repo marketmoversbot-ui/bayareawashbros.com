@@ -82,10 +82,6 @@ const ctaSecondary: CSSProperties = {
 };
 
 // ---- Service illustrations + tints ----
-// Presentation data keyed by service id. The list of services itself lives
-// in lib/services.ts so the homepage and booking form stay in sync.
-// To add a service: drop a row in lib/services.ts AND a block here.
-
 type Display = { tint: string; illustration: ReactNode };
 
 const display: Record<string, Display> = {
@@ -143,22 +139,16 @@ const display: Record<string, Display> = {
       </svg>
     ),
   },
-  // ---- NEW: Sidewalks ----
   sidewalk: {
     tint: "#E0F2FE",
     illustration: (
       <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-        {/* Sidewalk receding into the distance */}
         <path d="M30 110 L80 30 L120 30 L170 110 Z" fill="#0EA5E9" opacity="0.18" stroke="#0369A1" strokeWidth="2.5" strokeLinejoin="round" />
-        {/* Expansion joints between slabs */}
         <line x1="68" y1="55" x2="132" y2="55" stroke="#0369A1" strokeWidth="1.6" />
         <line x1="55" y1="80" x2="145" y2="80" stroke="#0369A1" strokeWidth="1.6" />
-        {/* A small crack on one slab (the dirt we're cleaning off) */}
         <path d="M90 65 L95 70 L92 76 L98 78" fill="none" stroke="#082F49" strokeWidth="1.2" strokeLinecap="round" />
-        {/* Grass strip along the side */}
         <path d="M170 110 L165 110 L168 100 L172 105 Z" fill="#15803d" opacity="0.6" />
         <path d="M30 110 L35 110 L32 100 L28 105 Z" fill="#15803d" opacity="0.6" />
-        {/* Spray + droplets coming in from corner */}
         <path d="M178 18 L160 30 L176 38 Z" fill="#0EA5E9" opacity="0.55" />
         <circle cx="158" cy="48" r="2" fill="#0EA5E9" />
         <circle cx="150" cy="54" r="1.6" fill="#0EA5E9" />
@@ -166,34 +156,18 @@ const display: Record<string, Display> = {
       </svg>
     ),
   },
-  // ---- NEW: Mailbox ----
   mailbox: {
     tint: "#FEF3C7",
     illustration: (
       <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-        {/* Ground line */}
         <line x1="20" y1="108" x2="180" y2="108" stroke="#082F49" strokeWidth="2" />
-        {/* Wood post */}
         <rect x="93" y="55" width="14" height="55" fill="#0EA5E9" opacity="0.25" stroke="#0369A1" strokeWidth="2" />
-        {/* Mailbox body — rounded top */}
-        <path
-          d="M55 60 L55 35 Q55 22 80 22 L130 22 Q155 22 155 35 L155 60 Z"
-          fill="#0EA5E9"
-          opacity="0.25"
-          stroke="#0369A1"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
-        />
-        {/* Door panel line */}
+        <path d="M55 60 L55 35 Q55 22 80 22 L130 22 Q155 22 155 35 L155 60 Z" fill="#0EA5E9" opacity="0.25" stroke="#0369A1" strokeWidth="2.5" strokeLinejoin="round" />
         <line x1="80" y1="22" x2="80" y2="60" stroke="#0369A1" strokeWidth="2" />
-        {/* Door knob */}
         <circle cx="74" cy="44" r="2" fill="#0369A1" />
-        {/* Red flag (raised, signature mailbox detail) */}
         <rect x="148" y="28" width="12" height="9" fill="#ef4444" />
         <line x1="148" y1="28" x2="148" y2="50" stroke="#0369A1" strokeWidth="2" />
-        {/* House number */}
         <text x="105" y="46" fontSize="11" fontWeight="800" fill="#082F49" textAnchor="middle" fontFamily="system-ui, sans-serif">123</text>
-        {/* Sparkle */}
         <path d="M30 32 L32 38 L38 40 L32 42 L30 48 L28 42 L22 40 L28 38 Z" fill="#FACC15" />
       </svg>
     ),
@@ -232,40 +206,23 @@ const display: Record<string, Display> = {
       </svg>
     ),
   },
-  // ---- NEW: Boat Dock ----
   boatdock: {
     tint: "#DCFCE7",
     illustration: (
       <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-        {/* Water (bottom band, wavy) */}
-        <path
-          d="M0 95 Q25 90 50 95 T100 95 T150 95 T200 95 L200 120 L0 120 Z"
-          fill="#0EA5E9"
-          opacity="0.35"
-        />
-        <path
-          d="M0 100 Q25 96 50 100 T100 100 T150 100 T200 100"
-          fill="none"
-          stroke="#0369A1"
-          strokeWidth="1"
-          opacity="0.6"
-        />
-        {/* Dock deck */}
+        <path d="M0 95 Q25 90 50 95 T100 95 T150 95 T200 95 L200 120 L0 120 Z" fill="#0EA5E9" opacity="0.35" />
+        <path d="M0 100 Q25 96 50 100 T100 100 T150 100 T200 100" fill="none" stroke="#0369A1" strokeWidth="1" opacity="0.6" />
         <rect x="20" y="55" width="160" height="20" fill="#0EA5E9" opacity="0.25" stroke="#0369A1" strokeWidth="2.5" strokeLinejoin="round" />
-        {/* Dock plank lines */}
         <line x1="50" y1="55" x2="50" y2="75" stroke="#0369A1" strokeWidth="1.4" />
         <line x1="80" y1="55" x2="80" y2="75" stroke="#0369A1" strokeWidth="1.4" />
         <line x1="110" y1="55" x2="110" y2="75" stroke="#0369A1" strokeWidth="1.4" />
         <line x1="140" y1="55" x2="140" y2="75" stroke="#0369A1" strokeWidth="1.4" />
         <line x1="170" y1="55" x2="170" y2="75" stroke="#0369A1" strokeWidth="1.4" />
-        {/* Pilings (wooden posts going down into water) */}
         <rect x="35" y="75" width="8" height="22" fill="#0369A1" opacity="0.7" />
         <rect x="95" y="75" width="8" height="22" fill="#0369A1" opacity="0.7" />
         <rect x="155" y="75" width="8" height="22" fill="#0369A1" opacity="0.7" />
-        {/* Cleat (T-shape on deck) for tying boat */}
         <rect x="118" y="48" width="14" height="3" fill="#0369A1" />
         <rect x="123" y="48" width="4" height="9" fill="#0369A1" />
-        {/* Sun/sparkle in upper corner */}
         <circle cx="170" cy="22" r="9" fill="#FACC15" opacity="0.9" />
         <path d="M170 8 L172 18 M170 36 L168 28 M156 22 L164 20 M184 22 L176 20" stroke="#FACC15" strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -273,7 +230,6 @@ const display: Record<string, Display> = {
   },
 };
 
-// ---- Trust pills ----
 const trustStrip = [
   "Locally Owned",
   "Fast Response",
@@ -281,7 +237,6 @@ const trustStrip = [
   "No Deposit Required",
 ];
 
-// ---- Why choose us ----
 const whyUs = [
   {
     title: "Fast Response",
@@ -623,15 +578,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer style={{ background: ink, color: "white", padding: "44px 0 36px" }}>
+      {/* FOOTER — centered */}
+      <footer style={{ background: ink, color: "white", padding: "44px 0 36px", textAlign: "center" }}>
         <div style={containerStyle}>
           <p style={{ fontSize: 18, fontWeight: 800, margin: "0 0 6px", color: accent }}>
             Locally owned by League City students.
           </p>
           <p
             style={{
-              margin: "0 0 22px",
+              margin: "0 auto 22px",
+              maxWidth: 560,
               color: "rgba(255,255,255,0.78)",
               fontSize: 15,
               lineHeight: 1.55,
@@ -639,7 +595,14 @@ export default function Home() {
           >
             Fast responses. Simple pricing. We show up and get it done right.
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              justifyContent: "center",
+            }}
+          >
             <a
               href={"tel:" + phoneRaw}
               style={{
@@ -668,7 +631,7 @@ export default function Home() {
             </a>
           </div>
           <p style={{ marginTop: 32, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
-            © {new Date().getFullYear()} Bay Area Wash Bros · League City, TX
+            © {new Date().getFullYear()} Bay Area Wash Bros. · League City, TX
           </p>
         </div>
       </footer>

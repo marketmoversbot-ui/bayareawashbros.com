@@ -3,13 +3,13 @@ import "./globals.css";
 import WeatherStrip from "../components/WeatherStrip";
 
 export const metadata: Metadata = {
-  title: "Bay Area Wash Bros | League City Pressure Washing",
+  title: "Bay Area Wash Bros. | League City Pressure Washing",
   description:
     "Local student-owned pressure washing in League City, TX. Driveways, patios, sidewalks, trash cans, houses, fences, mailboxes, and boat docks.",
   // Hint to iOS that the admin can be installed as a standalone PWA.
   appleWebApp: {
     capable: true,
-    title: "Wash Bros",
+    title: "Wash Bros.",
     statusBarStyle: "default",
   },
 };

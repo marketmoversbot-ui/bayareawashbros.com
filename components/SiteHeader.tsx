@@ -5,9 +5,6 @@ import BrandMark from "./BrandMark";
 // Public site header. Sticky, white, with logo + name on the left and a
 // "Send photos for a quote" button on the right. The button is hidden
 // on small screens to save room — the sticky bottom-bar CTA covers it.
-//
-// Brand sizing (May 2026): "Bay Area Wash Bros" reads loud — visitor
-// should never have to hunt for the company name.
 
 export default function SiteHeader() {
   return (
@@ -56,7 +53,7 @@ export default function SiteHeader() {
                 textOverflow: "ellipsis",
               }}
             >
-              Bay Area Wash Bros
+              Bay Area Wash Bros.
             </div>
             <div
               style={{
@@ -95,7 +92,6 @@ export default function SiteHeader() {
           Get a Quote
         </a>
 
-        {/* Hide CTA button on very small screens — sticky bottom CTA covers it */}
         <style
           dangerouslySetInnerHTML={{
             __html: "@media (max-width: 480px) { .header-cta { display: none !important; } }",
