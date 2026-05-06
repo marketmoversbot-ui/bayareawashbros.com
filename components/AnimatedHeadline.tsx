@@ -1,61 +1,65 @@
 "use client";
 
-// AnimatedHeadline — hero h1 with a one-time "dirty surface gets power-washed
-// clean" intro animation.
+// AnimatedHeadline — hero h1 with a one-time pressure-wash intro animation.
 //
-// Behavior:
-//   - First load in a session: text appears with a grime overlay; a soft
-//     spray cone sweeps left-to-right; grime is wiped away as the spray
-//     passes. ~1.6 seconds total. After that, text stays clean.
-//   - Subsequent loads in the same session: text appears clean instantly
-//     (no animation). Tracked via sessionStorage.
-//   - prefers-reduced-motion: animation is fully skipped (accessibility).
+// What you see:
+//   1. The headline appears with a heavy cartoon mud overlay covering the text
+//   2. A power-washer wand slides in from the left with a spray cone
+//   3. Wand zigzags up-and-down across the headline (like washing a fence)
+//   4. The mud is "wiped away" exactly along the zigzag path (SVG mask reveal)
+//   5. After 5 seconds the wand exits, mud is gone, headline stays clean
 //
-// Implementation notes:
-//   - Layout never shifts. The clean text occupies its final position
-//     from frame 0; only the dirt overlay and spray are animated.
-//   - The dirt is an SVG mask of irregular blotches at low opacity over
-//     a tan/brown color. It fades out via clip-path that grows L-to-R.
-//   - The spray is a wedge of white-blue dashes that translates across
-//     the headline's bounding box.
-//   - All animation is CSS keyframes triggered by adding a class.
+// Triggers once per browser session (sessionStorage). Subsequent loads
+// skip the animation entirely and show the clean headline.
+//
+// Respects prefers-reduced-motion: in that case, no animation runs at all.
+//
+// How the reveal works:
+//   - The mud is a <rect> filled with a brown blotchy <pattern>, sitting
+//     inside a <g mask="url(#reveal)">.
+//   - The mask defines a thick stroked path (white background + black stroke).
+//     White in the mask = visible mud, black = hidden mud.
+//   - The black stroke uses stroke-dasharray + animated stroke-dashoffset
+//     to "draw" the path over 4.5 seconds.
+//   - As the black stroke grows along the zigzag, the mud disappears.
+//   - The wand sprite uses SMIL animateMotion to follow the same path,
+//     so the wand visually leads the cleaning.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
   children: React.ReactNode;
-  // Style props passed through to the visible h1.
   style?: React.CSSProperties;
 };
 
-const SESSION_KEY = "bawb-hero-anim-played";
+const SESSION_KEY = "bawb-hero-anim-played-v2";
+
+// The zigzag path. Coordinates are in viewBox units (0-1000 wide, 0-240 tall).
+// The path enters from off-screen left (-80) and exits off-screen right (1100).
+const ZIGZAG_PATH =
+  "M-80 120 L80 35 L220 205 L360 35 L500 205 L640 35 L780 205 L920 35 L1100 120";
+
+const ANIM_DURATION_S = 4.5; // mask reveal
+const WAND_DURATION_S = 4.8; // wand motion (slightly longer so it exits cleanly)
+const ANIM_DELAY_S = 0.4;     // tiny pause before starting
 
 export default function AnimatedHeadline({ children, style }: Props) {
   const [shouldPlay, setShouldPlay] = useState(false);
-  const ref = useRef<HTMLHeadingElement | null>(null);
 
   useEffect(() => {
-    // SSR-safe checks
     if (typeof window === "undefined") return;
-
-    // Respect reduced-motion preference
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) {
       setShouldPlay(false);
       return;
     }
-
-    // Only play once per session
     let alreadyPlayed = false;
     try {
       alreadyPlayed = window.sessionStorage.getItem(SESSION_KEY) === "1";
     } catch {
-      // sessionStorage might be blocked (private mode, etc.) — just play
+      // ignore
     }
-
-    if (alreadyPlayed) {
-      setShouldPlay(false);
-    } else {
+    if (!alreadyPlayed) {
       setShouldPlay(true);
       try {
         window.sessionStorage.setItem(SESSION_KEY, "1");
@@ -67,10 +71,8 @@ export default function AnimatedHeadline({ children, style }: Props) {
 
   return (
     <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
-      {/* The actual heading — renders normally. */}
+      {/* The actual headline — always visible, normal flow */}
       <h1
-        ref={ref}
-        className={shouldPlay ? "bawb-anim-h1" : ""}
         style={{
           position: "relative",
           margin: 0,
@@ -80,116 +82,174 @@ export default function AnimatedHeadline({ children, style }: Props) {
         {children}
       </h1>
 
-      {/* Dirty overlay — only rendered when the animation is running.
-          This is positioned absolutely over the h1 and uses the same text
-          via aria-hidden so screen readers don't read it twice.
-          The overlay text is hidden text fill but with a grime background
-          so it shows the dirt only where the letters are. */}
+      {/* Animation layer — only mounts on first visit */}
       {shouldPlay ? (
-        <span
-          className="bawb-anim-dirt"
+        <svg
+          viewBox="0 0 1000 240"
+          preserveAspectRatio="none"
           aria-hidden="true"
           style={{
             position: "absolute",
             inset: 0,
-            pointerEvents: "none",
-            margin: 0,
-            ...style,
-            // The dirt overlay: a textured background clipped to the text shape.
-            // We use background-clip: text on a grime-colored gradient/noise.
-            background:
-              "radial-gradient(ellipse 30% 20% at 18% 30%, rgba(120,82,40,0.85), transparent 60%)," +
-              "radial-gradient(ellipse 25% 18% at 60% 70%, rgba(95,60,30,0.8), transparent 65%)," +
-              "radial-gradient(ellipse 20% 15% at 85% 25%, rgba(140,100,55,0.75), transparent 60%)," +
-              "radial-gradient(ellipse 18% 14% at 35% 80%, rgba(110,75,40,0.7), transparent 65%)," +
-              "linear-gradient(135deg, rgba(80,55,30,0.6), rgba(160,115,70,0.5))",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          {children}
-        </span>
-      ) : null}
-
-      {/* Spray cone — only rendered during animation */}
-      {shouldPlay ? (
-        <span
-          className="bawb-anim-spray"
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: "10%",
-            left: "-15%",
-            height: "80%",
-            width: "30%",
+            width: "100%",
+            height: "100%",
             pointerEvents: "none",
             zIndex: 2,
           }}
         >
-          {/* SVG spray cone: a fan of light blue + white tapered streaks
-              with a small "nozzle" indicator at the left edge. */}
-          <svg
-            viewBox="0 0 200 200"
-            preserveAspectRatio="none"
-            style={{ width: "100%", height: "100%", filter: "drop-shadow(0 0 8px rgba(59,130,246,0.45))" }}
+          <defs>
+            {/* Heavy mud pattern — cartoonish brown blotches that tile across
+                the headline. Multiple layered ellipses give organic variation. */}
+            <pattern
+              id="bawb-mud-pattern"
+              x="0"
+              y="0"
+              width="220"
+              height="140"
+              patternUnits="userSpaceOnUse"
+            >
+              <rect width="220" height="140" fill="#3D2613" />
+              <ellipse cx="50" cy="35" rx="45" ry="22" fill="#5A3818" opacity="0.95" />
+              <ellipse cx="170" cy="60" rx="55" ry="30" fill="#2A1808" opacity="0.95" />
+              <ellipse cx="100" cy="100" rx="50" ry="25" fill="#6B4422" opacity="0.85" />
+              <ellipse cx="200" cy="110" rx="35" ry="18" fill="#4A2C12" opacity="0.9" />
+              <ellipse cx="20" cy="100" rx="35" ry="20" fill="#3D2410" opacity="0.95" />
+              <ellipse cx="140" cy="20" rx="28" ry="14" fill="#7A5028" opacity="0.7" />
+              {/* darker speckles */}
+              <circle cx="80" cy="60" r="4" fill="#1A0F05" opacity="0.85" />
+              <circle cx="160" cy="90" r="5" fill="#1A0F05" opacity="0.8" />
+              <circle cx="40" cy="120" r="3" fill="#1A0F05" opacity="0.9" />
+              <circle cx="190" cy="40" r="4" fill="#1A0F05" opacity="0.85" />
+              {/* lighter highlights so it doesn't read as a flat brown */}
+              <ellipse cx="125" cy="65" rx="12" ry="6" fill="#8B5C30" opacity="0.5" />
+              <ellipse cx="60" cy="80" rx="10" ry="5" fill="#8B5C30" opacity="0.45" />
+            </pattern>
+
+            {/* Reveal mask: white = mud visible, black = mud hidden.
+                Starts fully white. Animated black stroke grows along the
+                zigzag path, hiding the mud as it advances. */}
+            <mask id="bawb-reveal-mask">
+              <rect width="1000" height="240" fill="white" />
+              <path
+                d={ZIGZAG_PATH}
+                stroke="black"
+                strokeWidth="90"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+                pathLength="1"
+                strokeDasharray="1"
+                strokeDashoffset="1"
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  from="1"
+                  to="0"
+                  dur={ANIM_DURATION_S + "s"}
+                  begin={ANIM_DELAY_S + "s"}
+                  fill="freeze"
+                  calcMode="spline"
+                  keySplines="0.4 0 0.2 1"
+                  keyTimes="0;1"
+                />
+              </path>
+            </mask>
+
+            {/* Spray cone gradient */}
+            <linearGradient id="bawb-spray-grad" x1="0" y1="0.5" x2="1" y2="0.5">
+              <stop offset="0" stopColor="rgba(255,255,255,0.95)" />
+              <stop offset="0.5" stopColor="rgba(186,230,253,0.75)" />
+              <stop offset="1" stopColor="rgba(186,230,253,0)" />
+            </linearGradient>
+          </defs>
+
+          {/* Mud layer — masked by the animated reveal */}
+          <g mask="url(#bawb-reveal-mask)">
+            <rect width="1000" height="240" fill="url(#bawb-mud-pattern)" />
+          </g>
+
+          {/* Wand sprite + spray cone — both follow the same zigzag path
+              via SMIL animateMotion. The wand is drawn pointing right (its
+              nozzle at x=80, the spray emerges from there). */}
+          <g
+            style={{
+              opacity: 0,
+            }}
           >
-            {/* main cone fill */}
-            <path
-              d="M 0 100 L 200 30 L 200 170 Z"
-              fill="url(#bawb-spray-grad)"
-              opacity="0.55"
+            <animate
+              attributeName="opacity"
+              from="0"
+              to="1"
+              dur="0.25s"
+              begin={ANIM_DELAY_S + "s"}
+              fill="freeze"
             />
-            {/* individual streak lines */}
-            <path d="M 0 100 L 200 50" stroke="rgba(255,255,255,0.7)" strokeWidth="1.4" />
-            <path d="M 0 100 L 200 80" stroke="rgba(186,230,253,0.85)" strokeWidth="1.6" />
-            <path d="M 0 100 L 200 120" stroke="rgba(186,230,253,0.85)" strokeWidth="1.6" />
-            <path d="M 0 100 L 200 150" stroke="rgba(255,255,255,0.7)" strokeWidth="1.4" />
-            <path d="M 0 100 L 200 35" stroke="rgba(255,255,255,0.5)" strokeWidth="0.9" />
-            <path d="M 0 100 L 200 165" stroke="rgba(255,255,255,0.5)" strokeWidth="0.9" />
-            {/* mist droplets */}
-            <circle cx="60" cy="92" r="1.5" fill="white" opacity="0.7" />
-            <circle cx="100" cy="115" r="1.2" fill="white" opacity="0.6" />
-            <circle cx="140" cy="80" r="1.8" fill="white" opacity="0.7" />
-            <circle cx="160" cy="130" r="1.3" fill="white" opacity="0.55" />
-            <circle cx="180" cy="60" r="1.6" fill="white" opacity="0.6" />
-            <circle cx="180" cy="155" r="1.4" fill="white" opacity="0.55" />
-            <defs>
-              <linearGradient id="bawb-spray-grad" x1="0" y1="0.5" x2="1" y2="0.5">
-                <stop offset="0" stopColor="rgba(255,255,255,0.85)" />
-                <stop offset="0.5" stopColor="rgba(186,230,253,0.55)" />
-                <stop offset="1" stopColor="rgba(186,230,253,0)" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </span>
+            <animate
+              attributeName="opacity"
+              from="1"
+              to="0"
+              dur="0.4s"
+              begin={(ANIM_DELAY_S + ANIM_DURATION_S - 0.1) + "s"}
+              fill="freeze"
+            />
+
+            <animateMotion
+              dur={WAND_DURATION_S + "s"}
+              begin={ANIM_DELAY_S + "s"}
+              fill="freeze"
+              path={ZIGZAG_PATH}
+              calcMode="spline"
+              keySplines="0.4 0 0.2 1"
+              keyTimes="0;1"
+            />
+
+            {/* Spray cone — drawn pointing RIGHT from origin (0,0).
+                Origin is the wand's nozzle position. */}
+            <g opacity="0.85">
+              {/* Cone body */}
+              <path
+                d="M 0 0 L 110 -50 L 110 50 Z"
+                fill="url(#bawb-spray-grad)"
+              />
+              {/* Streak lines */}
+              <line x1="0" y1="0" x2="110" y2="-40" stroke="rgba(255,255,255,0.85)" strokeWidth="2" />
+              <line x1="0" y1="0" x2="110" y2="-20" stroke="rgba(186,230,253,0.95)" strokeWidth="2" />
+              <line x1="0" y1="0" x2="110" y2="0" stroke="rgba(255,255,255,0.95)" strokeWidth="2.5" />
+              <line x1="0" y1="0" x2="110" y2="20" stroke="rgba(186,230,253,0.95)" strokeWidth="2" />
+              <line x1="0" y1="0" x2="110" y2="40" stroke="rgba(255,255,255,0.85)" strokeWidth="2" />
+              {/* Mist droplets */}
+              <circle cx="50" cy="-25" r="2" fill="white" opacity="0.85" />
+              <circle cx="80" cy="15" r="1.8" fill="white" opacity="0.8" />
+              <circle cx="65" cy="30" r="1.5" fill="white" opacity="0.75" />
+              <circle cx="90" cy="-10" r="2" fill="white" opacity="0.85" />
+              <circle cx="100" cy="35" r="1.6" fill="white" opacity="0.7" />
+              <circle cx="40" cy="20" r="1.4" fill="white" opacity="0.7" />
+            </g>
+
+            {/* Wand sprite — points right.
+                Nozzle tip is at (0,0), barrel extends LEFT (-x), grip even further left.
+                Drawn with the nozzle visible at the spray origin. */}
+            <g>
+              {/* Spray nozzle tip (blunt yellow tip) */}
+              <rect x="-10" y="-6" width="10" height="12" rx="2" fill="#FACC15" stroke="#0F172A" strokeWidth="1.5" />
+              {/* Barrel (long blue tube) */}
+              <rect x="-50" y="-4" width="40" height="8" rx="1.5" fill="#0EA5E9" stroke="#0F172A" strokeWidth="1.5" />
+              {/* Trigger guard */}
+              <path d="M -50 4 L -55 4 L -58 14 L -50 14 Z" fill="#0F172A" />
+              {/* Grip handle */}
+              <rect x="-65" y="-2" width="15" height="22" rx="3" fill="#1F2937" stroke="#0F172A" strokeWidth="1.5" />
+              {/* Trigger */}
+              <rect x="-58" y="6" width="6" height="10" rx="1" fill="#FACC15" stroke="#0F172A" strokeWidth="1" />
+            </g>
+          </g>
+        </svg>
       ) : null}
 
-      {/* Inline scoped styles for the keyframes */}
+      {/* Inline scoped styles for reduced-motion fallback */}
       <style
         dangerouslySetInnerHTML={{
-          __html: [
-            "@keyframes bawb-clean-sweep {",
-            "  0% { clip-path: inset(0 0 0 0); opacity: 0.95; }",
-            "  100% { clip-path: inset(0 100% 0 0); opacity: 0; }",
-            "}",
-            "@keyframes bawb-spray-sweep {",
-            "  0%   { transform: translateX(0%);   opacity: 0; }",
-            "  10%  { opacity: 1; }",
-            "  85%  { transform: translateX(380%); opacity: 1; }",
-            "  100% { transform: translateX(420%); opacity: 0; }",
-            "}",
-            ".bawb-anim-dirt {",
-            "  animation: bawb-clean-sweep 1.5s cubic-bezier(0.45, 0, 0.2, 1) 0.15s forwards;",
-            "}",
-            ".bawb-anim-spray {",
-            "  animation: bawb-spray-sweep 1.6s cubic-bezier(0.45, 0, 0.2, 1) 0.1s forwards;",
-            "}",
-            "@media (prefers-reduced-motion: reduce) {",
-            "  .bawb-anim-dirt, .bawb-anim-spray { animation: none !important; opacity: 0 !important; }",
-            "}",
-          ].join("\n"),
+          __html:
+            "@media (prefers-reduced-motion: reduce) { svg[aria-hidden='true'] { display: none !important; } }",
         }}
       />
     </div>
