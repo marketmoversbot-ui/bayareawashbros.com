@@ -1,32 +1,26 @@
 "use client";
 
-// AnimatedHeadline v3 — pressure-wash intro animation.
+// AnimatedHeadline v4 — pressure-wash intro animation.
+//
+// Changes from v3:
+//   - Total runtime extended to ~7 seconds (was ~5s) for a more deliberate feel.
+//   - Wand motion slowed via more linear easing (less "whip through the middle").
+//   - GUARANTEED clean ending: a final 0.7s fade ensures the dirty layer
+//     fully disappears even if the zigzag path missed any patches. No more
+//     leftover grime spots after the wand exits.
 //
 // Visual flow:
-//   1. Headline appears with each LETTER coated in mossy green-brown algae
-//      texture (real grime ON the letter shapes, not a box on top).
-//   2. From the left, a wide-spray power-washer wand slides in.
-//   3. Wand zigzags up and down across the headline (real fence-cleaning
-//      motion).
-//   4. As the spray sweeps over each letter, the algae is cleaned away,
-//      revealing the bright clean letter underneath. Cleaned = stays clean.
-//   5. After ~5 seconds, wand exits the right side. Algae overlay fades.
+//   1. Headline appears with letters coated in mossy green-brown algae.
+//   2. Brief beat (0.6s) — visitor registers the dirty state.
+//   3. Wand slides in from the left, zigzags up-and-down across the headline,
+//      cleaning each letter as it passes (~5.5s).
+//   4. Wand exits the right side.
+//   5. Any remaining grime fades completely over 0.7s — letters end clean.
 //
-// Triggers once per browser session. Subsequent loads in the same session
-// show the clean headline instantly. Respects prefers-reduced-motion.
+// Total: 0.6 + 5.5 + 0.7 = ~7 seconds before fully clean.
 //
-// Architecture:
-//   - The visible <h1> is real HTML text (SEO/accessibility). Always renders.
-//   - Above it, an inline <svg> overlays the headline as SVG <text> with
-//     a mossy fill pattern (the "dirty" layer).
-//   - Reveal mask: an animated stroke "draws" along a zigzag path. Where
-//     the stroke is drawn, the dirty layer is hidden, exposing the clean
-//     h1 below.
-//   - Wand sprite uses SMIL animateMotion to follow the same path.
-//
-// The SVG hardcodes the headline copy (line1 + line2). If the homepage
-// h1 ever changes wording, both the visible h1 and these props must
-// update together.
+// Triggers once per browser session. Subsequent visits show clean text instantly.
+// Respects prefers-reduced-motion.
 
 import { useEffect, useState } from "react";
 
@@ -37,15 +31,20 @@ type Props = {
   line2: string;
 };
 
-const SESSION_KEY = "bawb-hero-anim-played-v3";
+// Bumped to v4 so visitors who saw v3 see the fixed version once.
+const SESSION_KEY = "bawb-hero-anim-played-v4";
 
 const ZIGZAG_PATH =
   "M-100 120 L120 35 L260 205 L400 35 L540 205 L680 35 L820 205 L960 35 L1100 120";
 
-const TRAIL_WIDTH = 180;
-const ANIM_DURATION_S = 4.5;
-const WAND_DURATION_S = 4.7;
-const ANIM_DELAY_S = 0.5;
+const TRAIL_WIDTH = 200; // wider than v3 (was 180) — more letter coverage
+
+// Timing — all in seconds
+const ANIM_DELAY_S = 0.6;        // initial pause
+const SWEEP_DURATION_S = 5.5;     // wand zigzag motion (was 4.5)
+const WAND_DURATION_S = 5.7;      // wand slightly outlasts the mask reveal
+const FINAL_FADE_DELAY_S = ANIM_DELAY_S + SWEEP_DURATION_S - 0.3;  // start fade slightly before wand exits
+const FINAL_FADE_DURATION_S = 0.9;
 
 export default function AnimatedHeadline({
   children,
@@ -129,7 +128,8 @@ export default function AnimatedHeadline({
               <ellipse cx="170" cy="50" rx="9" ry="4" fill="#6B7038" opacity="0.5" />
             </pattern>
 
-            {/* Reveal mask. White = dirty visible. Black = dirty hidden. */}
+            {/* Reveal mask — animated stroke draws along the zigzag path,
+                hiding the dirty layer where it passes. */}
             <mask id="bawb-clean-mask" maskUnits="userSpaceOnUse">
               <rect width="1000" height="240" fill="white" />
               <path
@@ -147,11 +147,11 @@ export default function AnimatedHeadline({
                   attributeName="stroke-dashoffset"
                   from="1"
                   to="0"
-                  dur={ANIM_DURATION_S + "s"}
+                  dur={SWEEP_DURATION_S + "s"}
                   begin={ANIM_DELAY_S + "s"}
                   fill="freeze"
                   calcMode="spline"
-                  keySplines="0.4 0 0.2 1"
+                  keySplines="0.25 0 0.4 1"
                   keyTimes="0;1"
                 />
               </path>
@@ -164,8 +164,18 @@ export default function AnimatedHeadline({
             </linearGradient>
           </defs>
 
-          {/* DIRTY LAYER: hardcoded SVG text with mossy fill, masked by reveal */}
+          {/* DIRTY LAYER: mossy SVG text masked by the zigzag reveal.
+              Has a final opacity fade to guarantee a fully clean ending,
+              even if the zigzag missed any pixels. */}
           <g mask="url(#bawb-clean-mask)">
+            <animate
+              attributeName="opacity"
+              from="1"
+              to="0"
+              dur={FINAL_FADE_DURATION_S + "s"}
+              begin={FINAL_FADE_DELAY_S + "s"}
+              fill="freeze"
+            />
             <text
               x="0"
               y="100"
@@ -190,13 +200,13 @@ export default function AnimatedHeadline({
             </text>
           </g>
 
-          {/* WAND + SPRAY: follows the zigzag path */}
+          {/* WAND + SPRAY */}
           <g style={{ opacity: 0 }}>
             <animate
               attributeName="opacity"
               from="0"
               to="1"
-              dur="0.3s"
+              dur="0.35s"
               begin={ANIM_DELAY_S + "s"}
               fill="freeze"
             />
@@ -204,8 +214,8 @@ export default function AnimatedHeadline({
               attributeName="opacity"
               from="1"
               to="0"
-              dur="0.4s"
-              begin={(ANIM_DELAY_S + ANIM_DURATION_S - 0.1) + "s"}
+              dur="0.5s"
+              begin={(ANIM_DELAY_S + SWEEP_DURATION_S - 0.1) + "s"}
               fill="freeze"
             />
 
@@ -215,7 +225,7 @@ export default function AnimatedHeadline({
               fill="freeze"
               path={ZIGZAG_PATH}
               calcMode="spline"
-              keySplines="0.4 0 0.2 1"
+              keySplines="0.25 0 0.4 1"
               keyTimes="0;1"
               rotate="auto"
             />
