@@ -12,6 +12,10 @@ import { prisma } from "../../../lib/db";
 //   2. Validates name + phone + email (required); photos are OPTIONAL
 //   3. Saves any uploaded photos to /tmp on the server with a session id
 //   4. Upserts the Customer (status=LEAD on new customer)
+//      - If existing customer is currently BOOKED, leave status alone (they're a
+//        confirmed customer just submitting another request — don't downgrade them)
+//      - If existing customer is LEAD/PENDING/LOST, reset to LEAD so the new
+//        submission feels like a fresh new lead in the inbox
 //   5. Creates an INBOUND Message record with the lead body, photo URLs,
 //      and selected service — so the admin sees this lead in the inbox
 //   6. Sends MMS to admin's phone via Twilio (if configured)
@@ -35,7 +39,6 @@ const DEFAULT_TO = "+18328819960";
 
 // Loose RFC-5322-ish check. We don't try to fully validate emails — that's
 // a rabbit hole. We just check that there's text, @, more text, dot, more text.
-// If they typo, your son can ask for it again over the phone.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function sanitize(name: string) {
@@ -49,6 +52,17 @@ function normalizePhone(raw: string): string | null {
   if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
   if (digits.length >= 10 && digits.length <= 15) return "+" + digits;
   return null;
+}
+
+// Normalize PUBLIC_BASE_URL — ensure it has a protocol prefix.
+// If someone sets it as "bayareawashbros.com" instead of "https://bayareawashbros.com",
+// add https:// to avoid relative-URL bugs (which previously caused 404s in admin).
+function normalizeBaseUrl(raw: string): string {
+  let s = raw.trim().replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(s)) {
+    s = "https://" + s;
+  }
+  return s;
 }
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -141,9 +155,9 @@ export async function POST(req: Request) {
       await fs.writeFile(path.join(dir, f.saveName), buffer);
     }
     const reqUrl = new URL(req.url);
-    const baseUrl =
-      process.env.PUBLIC_BASE_URL ||
-      (reqUrl.protocol + "//" + reqUrl.host).replace(/\/$/, "");
+    const baseUrl = process.env.PUBLIC_BASE_URL
+      ? normalizeBaseUrl(process.env.PUBLIC_BASE_URL)
+      : (reqUrl.protocol + "//" + reqUrl.host).replace(/\/$/, "");
     mediaUrls = files.map(
       (f) =>
         baseUrl +
@@ -157,12 +171,24 @@ export async function POST(req: Request) {
   // ---- Persist to database (Customer + Message) ----
   let customerId: string | null = null;
   try {
+    // First, check if this customer already exists and whether they're BOOKED.
+    // BOOKED customers keep their status; everyone else (LEAD/PENDING/LOST) gets
+    // reset to LEAD so the new submission feels like a fresh new lead.
+    const existing = await prisma.customer.findUnique({
+      where: { phone: phoneE164 },
+      select: { id: true, status: true },
+    });
+
+    const shouldKeepBooked = existing?.status === "BOOKED";
+
     const customer = await prisma.customer.upsert({
       where: { phone: phoneE164 },
       update: {
         name: name || undefined,
         email: email || undefined,
         address: address || undefined,
+        // Reset to LEAD unless they're a currently-BOOKED customer
+        status: shouldKeepBooked ? undefined : "LEAD",
       },
       create: {
         phone: phoneE164,
