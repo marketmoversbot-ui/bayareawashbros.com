@@ -3,7 +3,7 @@
 // Combined quote-request form. Replaces both PhotoQuoteForm and BookingForm.
 //
 // Customer fills out:
-//   - Name, phone, address (required)
+//   - Name, phone, email, address (required)
 //   - What needs cleaning? (dropdown — services + "Other")
 //   - Anything else? (free-text textarea)
 //   - Photos (optional, drag-and-drop OR tap to browse)
@@ -264,6 +264,14 @@ export default function QuoteForm() {
         type="tel"
         placeholder="Phone number"
         autoComplete="tel"
+        required
+        style={inputStyle}
+      />
+      <input
+        name="email"
+        type="email"
+        placeholder="Email address"
+        autoComplete="email"
         required
         style={inputStyle}
       />

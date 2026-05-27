@@ -8,19 +8,14 @@ import { prisma } from "../../../lib/db";
 // Quote-request intake.
 //
 // Behavior:
-//   1. Parses multipart form data: name, phone, address, service, notes, photos[]
-//   2. Validates name + phone (required); photos are OPTIONAL
+//   1. Parses multipart form data: name, phone, email, address, service, notes, photos[]
+//   2. Validates name + phone + email (required); photos are OPTIONAL
 //   3. Saves any uploaded photos to /tmp on the server with a session id
 //   4. Upserts the Customer (status=LEAD on new customer)
 //   5. Creates an INBOUND Message record with the lead body, photo URLs,
 //      and selected service — so the admin sees this lead in the inbox
 //   6. Sends MMS to admin's phone via Twilio (if configured)
 //   7. Sends backup email-to-SMS via Resend (if configured)
-//
-// The backup email-to-SMS path exists because Twilio A2P 10DLC registration
-// is required for US local numbers, which takes 24-72 hours to approve.
-// In the meantime, the email backup forwards lead info via the carrier's
-// email-to-SMS gateway (e.g., 8328819960@tmomail.net for T-Mobile).
 //
 // Env vars (set in Railway):
 //   TWILIO_ACCOUNT_SID
@@ -37,6 +32,11 @@ const UPLOAD_ROOT = path.join(os.tmpdir(), "baw-photo-uploads");
 const MAX_FILES = 8;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_TO = "+18328819960";
+
+// Loose RFC-5322-ish check. We don't try to fully validate emails — that's
+// a rabbit hole. We just check that there's text, @, more text, dot, more text.
+// If they typo, your son can ask for it again over the phone.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function sanitize(name: string) {
   const base = name.split(/[\\/]/).pop() ?? "photo";
@@ -66,6 +66,7 @@ const SERVICE_LABELS: Record<string, string> = {
 export async function POST(req: Request) {
   let name = "";
   let phone = "";
+  let email = "";
   let address = "";
   let notes = "";
   let service = "";
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
     const form = await req.formData();
     name = String(form.get("name") ?? "").trim();
     phone = String(form.get("phone") ?? "").trim();
+    email = String(form.get("email") ?? "").trim().toLowerCase();
     address = String(form.get("address") ?? "").trim();
     notes = String(form.get("notes") ?? "").trim();
     service = String(form.get("service") ?? "").trim();
@@ -110,6 +112,12 @@ export async function POST(req: Request) {
   if (!name || !phone) {
     return NextResponse.json(
       { ok: false, error: "Missing name or phone" },
+      { status: 400 }
+    );
+  }
+  if (!email || !EMAIL_REGEX.test(email)) {
+    return NextResponse.json(
+      { ok: false, error: "Please enter a valid email address" },
       { status: 400 }
     );
   }
@@ -153,10 +161,12 @@ export async function POST(req: Request) {
       where: { phone: phoneE164 },
       update: {
         name: name || undefined,
+        email: email || undefined,
         address: address || undefined,
       },
       create: {
         phone: phoneE164,
+        email,
         name,
         address,
         status: "LEAD",
@@ -168,6 +178,7 @@ export async function POST(req: Request) {
     const bodyLines: string[] = [];
     if (serviceLabel) bodyLines.push("Service: " + serviceLabel);
     if (address) bodyLines.push("Address: " + address);
+    if (email) bodyLines.push("Email: " + email);
     if (notes) bodyLines.push("Notes: " + notes);
     if (mediaUrls.length > 0) {
       bodyLines.push(
@@ -195,6 +206,7 @@ export async function POST(req: Request) {
   // Build the notification text body — used for both Twilio MMS and email-to-SMS
   const serviceLabel = service ? SERVICE_LABELS[service] ?? service : null;
   const notifyLines = ["New quote request from " + name, "Phone: " + phone];
+  if (email) notifyLines.push("Email: " + email);
   if (serviceLabel) notifyLines.push("Service: " + serviceLabel);
   if (address) notifyLines.push("Address: " + address);
   if (notes) notifyLines.push("Notes: " + notes);
@@ -203,6 +215,7 @@ export async function POST(req: Request) {
   console.log("[photo-quote] received:", {
     name,
     phone: phoneE164,
+    email,
     address,
     notes,
     service,
@@ -244,9 +257,6 @@ export async function POST(req: Request) {
   }
 
   // ---- Path B: Send backup email-to-SMS via Resend ----
-  // This goes to the carrier email-to-SMS gateway (e.g. 8328819960@tmomail.net
-  // for T-Mobile). Carrier converts to plain SMS and delivers to the phone.
-  // Provides reliable backup while Twilio A2P 10DLC registration is pending.
   const resendKey = process.env.RESEND_API_KEY;
   const notifyEmail = process.env.NOTIFY_EMAIL;
   let emailStatus: "sent" | "skipped" | "error" = "skipped";
@@ -256,16 +266,12 @@ export async function POST(req: Request) {
       const resendModule = await import("resend");
       const Resend = resendModule.Resend;
       const resend = new Resend(resendKey);
-      // SMS gateways tend to strip subjects and HTML; plain text body is what
-      // actually shows up on the phone. Subject is usually shown as the sender
-      // header on the SMS, varies by carrier.
       const result = await resend.emails.send({
         from: "Wash Bros Lead <onboarding@resend.dev>",
         to: notifyEmail,
         subject: "New quote: " + name,
         text: notifyBody,
       });
-      // Resend returns { data, error } — check for either
       if (result && "error" in result && result.error) {
         console.error("[photo-quote] Resend send failed:", result.error);
         emailStatus = "error";

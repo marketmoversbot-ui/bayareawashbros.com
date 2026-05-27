@@ -26,6 +26,10 @@ model Customer {
   id        String         @id @default(cuid())
   // E.164 format, e.g. "+18328819960"
   phone     String         @unique
+  // Email is collected on the quote form (required from new leads) but kept
+  // optional in the DB so existing customers from before this field was added
+  // don't break. Also optional for manually-added walk-in bookings.
+  email     String?
   name      String?
   address   String?
   notes     String?
